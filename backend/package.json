@@ -1,0 +1,25 @@
+{
+  "name": "garagego",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "locate nearest garage",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js",
+  "dev": "nodemon app.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "fprogramz",
+  "license": "MIT",
+  "dependencies": {
+    "body-parser": "^2.2.0",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.2",
+    "express": "^5.1.0",
+    "firebase-admin": "^13.5.0",
+    "mongoose": "^8.18.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.10"
+  }
+}
