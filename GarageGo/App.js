@@ -1,20 +1,28 @@
-import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View } from 'react-native';
+import React, { useEffect } from 'react';
+import { View, Text } from 'react-native';
+import AppNavigator from './navigation/Navigation';
+import {
+  requestUserPermission,
+  listenToForegroundMessages,
+  handleBackgroundMessages,
+  handleNotificationOpenedApp,
+} from './services/notificationService';
 
-export default function App() {
-  return (
-    <View style={styles.container}>
-      <Text>Open up App.js to start working on your app!</Text>
-      <StatusBar style="auto" />
-    </View>
-  );
-}
+const App = () => {
+  useEffect(() => {
+    const initFCM = async () => {
+      const token = await requestUserPermission();
+      console.log('Send this token to backend:', token);
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-});
+      listenToForegroundMessages();
+      handleBackgroundMessages();
+      handleNotificationOpenedApp();
+    };
+
+    initFCM();
+  }, []);
+
+  return <AppNavigator />;
+};
+
+export default App;

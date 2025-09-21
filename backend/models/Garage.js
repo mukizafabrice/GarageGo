@@ -1,12 +1,23 @@
+// models/Garage.js
 import mongoose from "mongoose";
 
-const garageSchema = new mongoose.Schema({
-  name: { type: String, required: true },
-  address: { type: String },
-  latitude: { type: Number, required: true },
-  longitude: { type: Number, required: true },
-  services: { type: [String] }, // e.g., ["Oil Change", "Tire Repair"]
-});
+const garageSchema = new mongoose.Schema(
+  {
+    name: { type: String, required: true },
+    description: { type: String },
+    latitude: { type: Number, required: true },
+    longitude: { type: Number, required: true },
+    address: { type: String },
+    phone: { type: String },
+    services: [{ type: String }],
+    userId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
+    fcmToken: { type: String }, // 🚨 new field for push notifications
+  },
+  { timestamps: true }
+);
 
-const Garage = mongoose.model("Garage", garageSchema);
-export default Garage;
+export default mongoose.model("Garage", garageSchema);

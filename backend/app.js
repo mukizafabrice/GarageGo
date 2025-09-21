@@ -3,19 +3,14 @@ import dotenv from "dotenv";
 import cors from "cors";
 import connectDB from "./config/db.js";
 import garageRoutes from "./routes/garageRoutes.js";
-import adminRoutes from "./routes/userRoutes.js";
-import admin from "firebase-admin";
-import serviceAccount from "./config/firebase.js";
+import userRoutes from "./routes/userRoutes.js";
+import admin from "./config/firebase.js";
+
 // Load environment variables
 dotenv.config();
 
 // Connect to MongoDB
 connectDB();
-
-// Initialize Firebase Admin
-admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount),
-});
 
 console.log("Firebase Admin initialized ✅");
 
@@ -28,7 +23,7 @@ app.use(express.json()); // parse JSON requests
 
 // Routes
 app.use("/api/garages", garageRoutes);
-app.use("/api/admin", adminRoutes); // for admin routes
+app.use("/api/user", userRoutes); // for admin routes
 
 // Root route
 app.get("/", (req, res) => {

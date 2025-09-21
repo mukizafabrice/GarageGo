@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "850554016587",
+    "project_id": "garagego-a3318",
+    "storage_bucket": "garagego-a3318.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:850554016587:android:28e950d66edf76259e0ece",
+        "android_client_info": {
+          "package_name": "com.garagego"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB3HBeiOOeMvrtzhpCYg1H9PzJN7G6AjSA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
