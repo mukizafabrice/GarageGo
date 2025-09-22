@@ -1,50 +1,39 @@
-import messaging from "@react-native-firebase/messaging";
+import * as Notifications from "expo-notifications";
+import * as Device from "expo-device";
 import { Alert, Platform } from "react-native";
 
 export const requestUserPermission = async () => {
-  const authStatus = await messaging().requestPermission();
-  const enabled =
-    authStatus === messaging.AuthorizationStatus.AUTHORIZED ||
-    authStatus === messaging.AuthorizationStatus.PROVISIONAL;
+  if (Device.isDevice) {
+    const { status: existingStatus } =
+      await Notifications.getPermissionsAsync();
+    let finalStatus = existingStatus;
 
-  if (enabled) {
-    console.log("Authorization status:", authStatus);
-    const fcmToken = await messaging().getToken();
-    console.log("FCM Token:", fcmToken);
-    return fcmToken; // send this to backend
+    if (existingStatus !== "granted") {
+      const { status } = await Notifications.requestPermissionsAsync();
+      finalStatus = status;
+    }
+
+    if (finalStatus !== "granted") {
+      console.log("Permission not granted!");
+      return null;
+    }
+
+    const token = (await Notifications.getExpoPushTokenAsync()).data;
+    console.log("Expo Push Token:", token);
+    return token; // Send to your backend
   } else {
-    console.log("FCM permission denied");
+    Alert.alert("Must use physical device for Push Notifications");
   }
 };
 
 export const listenToForegroundMessages = () => {
-  messaging().onMessage(async (remoteMessage) => {
-    Alert.alert("New Notification", remoteMessage.notification?.body || "");
-  });
-};
-
-export const handleBackgroundMessages = async () => {
-  messaging().setBackgroundMessageHandler(async (remoteMessage) => {
-    console.log("Background message:", remoteMessage);
+  Notifications.addNotificationReceivedListener((notification) => {
+    Alert.alert("New Notification", notification.request.content.body || "");
   });
 };
 
 export const handleNotificationOpenedApp = () => {
-  messaging().onNotificationOpenedApp((remoteMessage) => {
-    console.log(
-      "Notification caused app to open from background:",
-      remoteMessage
-    );
+  Notifications.addNotificationResponseReceivedListener((response) => {
+    console.log("Notification clicked:", response);
   });
-
-  messaging()
-    .getInitialNotification()
-    .then((remoteMessage) => {
-      if (remoteMessage) {
-        console.log(
-          "Notification caused app to open from quit state:",
-          remoteMessage
-        );
-      }
-    });
 };
