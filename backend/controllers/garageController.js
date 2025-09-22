@@ -83,17 +83,6 @@ export const getGarageById = async (req, res) => {
   }
 };
 
-/**
- * @desc    Get nearby garages and send notifications
- * @route   GET /api/garages/nearby?lat=xx&lng=yy&radius=5000
- * @access  Public
- */
-
-/**
- * @desc    Get nearby garages and send notifications
- * @route   GET /api/garages/nearby?lat=xx&lng=yy&radius=5000
- * @access  Public
- */
 export const getNearbyGarages = async (req, res) => {
   try {
     const { lat, lng, radius } = req.query;
