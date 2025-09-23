@@ -1,35 +1,94 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import AuthService from "../services/AuthService";
+import { Alert } from "react-native";
 
-// Create the context
 const AuthContext = createContext();
 
-// Provider component
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null); // null = not logged in
+  const [user, setUser] = useState(null);
+  const [token, setToken] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  // Initialize user and token from AsyncStorage on app start
   useEffect(() => {
-    // Simulate loading stored user (replace with AsyncStorage or API call)
-    const loadUser = async () => {
+    const initializeAuth = async () => {
       try {
-        // Example: const storedUser = await AsyncStorage.getItem('user');
-        const storedUser = null;
+        const storedToken = await AsyncStorage.getItem("token");
+        const storedUser = await AsyncStorage.getItem("user");
+
+        if (storedToken) setToken(storedToken);
         if (storedUser) setUser(JSON.parse(storedUser));
-      } catch (err) {
-        console.error("Error loading user:", err);
+      } catch (error) {
+        console.error("Error initializing auth:", error);
       } finally {
         setIsLoading(false);
       }
     };
-    loadUser();
+    initializeAuth();
   }, []);
 
+  const login = async (email, password) => {
+    setIsLoading(true);
+    try {
+      const response = await AuthService.login(email, password);
+
+      // Validate backend response
+      if (!response || !response.token || !response._id) {
+        throw new Error("Invalid login credentials or server response");
+      }
+
+      const { token, ...userData } = response;
+
+      setToken(token);
+      setUser(userData);
+
+      // Safely store in AsyncStorage
+      await AsyncStorage.setItem("token", token);
+      await AsyncStorage.setItem("user", JSON.stringify(userData));
+
+      return { success: true };
+    } catch (error) {
+      console.error("Login error:", error);
+      Alert.alert("Login Failed", error.message || "An error occurred");
+      return { success: false, error: error.message };
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const logout = async () => {
+    setIsLoading(true);
+    try {
+      await AsyncStorage.removeItem("token");
+      await AsyncStorage.removeItem("user");
+      setUser(null);
+      setToken(null);
+    } catch (error) {
+      console.error("Logout error:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const updateUser = async (updatedUserData) => {
+    if (!updatedUserData) return; // prevent storing undefined
+    try {
+      setUser(updatedUserData);
+      await AsyncStorage.setItem("user", JSON.stringify(updatedUserData));
+    } catch (error) {
+      console.error("Error updating user data:", error);
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ user, setUser, isLoading }}>
+    <AuthContext.Provider
+      value={{ user, token, login, logout, updateUser, isLoading }}
+    >
       {children}
     </AuthContext.Provider>
   );
 };
 
-// Custom hook to use the context
+// Custom hook for easy access
 export const useAuth = () => useContext(AuthContext);

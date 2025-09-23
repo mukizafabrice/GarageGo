@@ -1,10 +1,7 @@
 import React, { useEffect } from "react";
 import { View, ActivityIndicator, StyleSheet } from "react-native";
-import { NavigationContainer } from "@react-navigation/native";
 import { AuthProvider, useAuth } from "./context/AuthContext";
-
-import AuthNavigator from "./navigation/AuthNavigator";
-import AppNavigator from "./navigation/AppNavigator";
+import RootNavigator from "./navigation/RootNavigator";
 
 import {
   requestUserPermission,
@@ -13,8 +10,8 @@ import {
   handleNotificationOpenedApp,
 } from "./services/notificationService";
 
-const RootNavigation = () => {
-  const { user, isLoading } = useAuth();
+const AppContent = () => {
+  const { isLoading } = useAuth();
 
   if (isLoading) {
     return (
@@ -24,11 +21,7 @@ const RootNavigation = () => {
     );
   }
 
-  return (
-    <NavigationContainer>
-      {user ? <AppNavigator /> : <AuthNavigator />}
-    </NavigationContainer>
-  );
+  return <RootNavigator />;
 };
 
 const App = () => {
@@ -46,7 +39,7 @@ const App = () => {
 
   return (
     <AuthProvider>
-      <RootNavigation />
+      <AppContent />
     </AuthProvider>
   );
 };

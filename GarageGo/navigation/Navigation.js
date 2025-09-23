@@ -5,8 +5,8 @@ import { NavigationContainer } from "@react-navigation/native";
 
 import LandingPage from "../screens/LandingPage";
 import Login from "../screens/Login";
-import GarageDashboard from "../screens/garage/GarageDashboard";
-import AdminDashboard from "../screens/admin/AdminDashboard";
+import GarageDashboard from "../screens/garage/GarageHome";
+import AdminDashboard from "../screens/admin/AdminHome";
 
 const Stack = createNativeStackNavigator();
 

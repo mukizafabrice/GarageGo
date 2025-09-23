@@ -21,6 +21,14 @@ const app = express();
 app.use(cors());
 app.use(express.json()); // parse JSON requests
 
+const allowedOrigins = ["http://172.20.10.2:8081", "http://localhost:5000"];
+app.use(
+  cors({
+    origin: allowedOrigins,
+    credentials: true,
+  })
+);
+
 // Routes
 app.use("/api/garages", garageRoutes);
 app.use("/api/user", userRoutes); // for admin routes

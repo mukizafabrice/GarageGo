@@ -15,7 +15,7 @@ const garageSchema = new mongoose.Schema(
       ref: "User",
       required: true,
     },
-    fcmToken: { type: String }, // 🚨 new field for push notifications
+    fcmToken: { type: String },
   },
   { timestamps: true }
 );

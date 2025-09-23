@@ -1,8 +1,8 @@
 import React from "react";
 import { View } from "react-native";
 
-function GarageSettings() {
+function Traveller() {
   return <View></View>;
 }
 
-export default GarageSettings;
+export default Traveller;

@@ -8,10 +8,11 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  Alert,
 } from "react-native";
-import { useNavigation } from "@react-navigation/native"; // proper navigation hook
-
-// Custom Button
+import { useNavigation } from "@react-navigation/native";
+import { useAuth } from "../context/AuthContext";
+import AuthService from "../services/AuthService";
 const CustomButton = ({ onPress, title, style, labelStyle }) => (
   <TouchableOpacity style={[styles.loginButton, style]} onPress={onPress}>
     <Text style={[styles.buttonLabel, labelStyle]}>{title}</Text>
@@ -23,12 +24,18 @@ const Login = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-
-  const handleLogin = () => {
-    if (email === "admin@garage.com") {
-      navigation.replace("AdminDashboard");
-    } else {
-      navigation.replace("GarageDashboard");
+  const [isLoading, setIsLoading] = useState(false);
+  const { login } = useAuth();
+  const handleLogin = async () => {
+    setIsLoading(true);
+    try {
+      const result = await login(email, password); // This sets user in context
+      // No need for navigation.navigate("Home")
+      // The navigator will automatically show HomeScreen when user is set
+    } catch (error) {
+      Alert.alert("Error", error.message || "An error occurred during login.");
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -96,7 +103,12 @@ const Login = () => {
             </TouchableOpacity>
 
             {/* Login Button */}
-            <CustomButton title="Login" onPress={handleLogin} />
+            <CustomButton
+              title="Login"
+              onPress={handleLogin}
+              loading={isLoading}
+              disabled={isLoading}
+            />
           </View>
         </View>
       </ScrollView>
