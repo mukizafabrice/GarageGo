@@ -1,5 +1,6 @@
+// screens/admin/UserScreen.js
 import React, { useState, useEffect } from "react";
-import { View, StyleSheet, FlatList, Alert, Text } from "react-native";
+import { View, StyleSheet, FlatList, Alert } from "react-native";
 import {
   Card,
   Button,
@@ -7,10 +8,20 @@ import {
   ActivityIndicator,
   List,
   FAB,
+  Modal,
+  Portal,
+  Provider,
+  Text,
 } from "react-native-paper";
-import { fetchUsers, deleteUser } from "../../services/AuthService";
+import DropDownPicker from "react-native-dropdown-picker";
+import {
+  fetchUsers,
+  deleteUser,
+  addUser,
+  updateUser,
+} from "../../services/AuthService";
 
-const UserScreen = ({ navigation, onRefresh }) => {
+const UserScreen = () => {
   const [users, setUsers] = useState([]);
   const [filteredUsers, setFilteredUsers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -18,9 +29,23 @@ const UserScreen = ({ navigation, onRefresh }) => {
   const [expandedIndex, setExpandedIndex] = useState(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
+  // Modal states
+  const [modalVisible, setModalVisible] = useState(false);
+  const [editingUser, setEditingUser] = useState(null);
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [role, setRole] = useState("user");
+
+  // DropDownPicker states
+  const [open, setOpen] = useState(false);
+  const [items, setItems] = useState([
+    { label: "Admin", value: "admin" },
+    { label: "User", value: "user" },
+  ]);
+
   useEffect(() => {
-    fetchUserData();
-  }, [onRefresh]);
+    getUsers();
+  }, []);
 
   useEffect(() => {
     const lowerCaseQuery = searchQuery.toLowerCase();
@@ -30,7 +55,7 @@ const UserScreen = ({ navigation, onRefresh }) => {
     setFilteredUsers(filtered);
   }, [searchQuery, users]);
 
-  const fetchUserData = async () => {
+  const getUsers = async () => {
     setIsRefreshing(true);
     setLoading(true);
     try {
@@ -57,7 +82,7 @@ const UserScreen = ({ navigation, onRefresh }) => {
             try {
               await deleteUser(id);
               Alert.alert("Success", "User deleted successfully!");
-              fetchUserData();
+              getUsers();
             } catch (error) {
               Alert.alert("Error", "Failed to delete user.");
             }
@@ -65,6 +90,35 @@ const UserScreen = ({ navigation, onRefresh }) => {
         },
       ]
     );
+  };
+
+  const handleSave = async () => {
+    if (!name || !email) {
+      Alert.alert("Validation", "Name and Email are required.");
+      return;
+    }
+
+    try {
+      if (editingUser) {
+        await updateUser(editingUser._id, { name, email, role });
+        Alert.alert("Success", "User updated successfully!");
+      } else {
+        await addUser({ name, email }); // role not needed
+        Alert.alert("Success", "User added successfully!");
+      }
+      setModalVisible(false);
+      resetForm();
+      getUsers();
+    } catch (error) {
+      Alert.alert("Error", "Failed to save user.");
+    }
+  };
+
+  const resetForm = () => {
+    setEditingUser(null);
+    setName("");
+    setEmail("");
+    setRole("user");
   };
 
   const toggleExpand = (index) => {
@@ -76,12 +130,19 @@ const UserScreen = ({ navigation, onRefresh }) => {
       <Card.Title
         title={item.name}
         titleStyle={styles.cardTitle}
+        subtitle={item.email}
         subtitleStyle={styles.cardSubtitle}
         right={() => (
           <View style={styles.cardActions}>
             <Button
               icon="pencil"
-              onPress={() => navigation.navigate("EditUser", { user: item })}
+              onPress={() => {
+                setEditingUser(item);
+                setName(item.name);
+                setEmail(item.email);
+                setRole(item.role);
+                setModalVisible(true);
+              }}
               mode="text"
               textColor="#000000"
             />
@@ -103,17 +164,17 @@ const UserScreen = ({ navigation, onRefresh }) => {
       {expandedIndex === index && (
         <Card.Content style={styles.cardContent}>
           <List.Item
-            title="Email"
-            description={item.email}
-            left={(props) => <List.Icon {...props} icon="mail" />}
+            title="Role"
+            description={item.role}
+            left={(props) => <List.Icon {...props} icon="account" />}
             style={styles.listItem}
             titleStyle={styles.listItemTitle}
             descriptionStyle={styles.listItemDescription}
           />
           <List.Item
-            title="Role"
-            description={item.role}
-            left={(props) => <List.Icon {...props} icon="account" />}
+            title="Password"
+            description="******** (default)"
+            left={(props) => <List.Icon {...props} icon="lock" />}
             style={styles.listItem}
             titleStyle={styles.listItemTitle}
             descriptionStyle={styles.listItemDescription}
@@ -124,109 +185,145 @@ const UserScreen = ({ navigation, onRefresh }) => {
   );
 
   return (
-    <View style={styles.container}>
-      <View style={styles.searchContainer}>
-        <TextInput
-          style={styles.searchInput}
-          label="Search users..."
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-          mode="outlined"
-          left={<TextInput.Icon icon="magnify" />}
+    <Provider>
+      <View style={styles.container}>
+        <View style={styles.searchContainer}>
+          <TextInput
+            style={styles.searchInput}
+            label="Search users..."
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            mode="outlined"
+            left={<TextInput.Icon icon="magnify" />}
+          />
+        </View>
+
+        {loading ? (
+          <ActivityIndicator
+            animating={true}
+            color="#4CAF50"
+            style={styles.loadingIndicator}
+            size="large"
+          />
+        ) : (
+          <FlatList
+            data={filteredUsers}
+            renderItem={renderUserItem}
+            keyExtractor={(item, index) => item._id || index.toString()}
+            contentContainerStyle={styles.listContainer}
+            onRefresh={getUsers}
+            refreshing={isRefreshing}
+          />
+        )}
+
+        <FAB
+          style={styles.fab}
+          icon="plus"
+          onPress={() => {
+            resetForm();
+            setModalVisible(true);
+          }}
+          color="#FFFFFF"
         />
+
+        {/* Add/Edit Modal */}
+        <Portal>
+          <Modal
+            visible={modalVisible}
+            onDismiss={() => setModalVisible(false)}
+            contentContainerStyle={styles.modalContainer}
+          >
+            <Text style={styles.modalTitle}>
+              {editingUser ? "Edit User" : "Add User"}
+            </Text>
+            <TextInput
+              label="Name"
+              value={name}
+              onChangeText={setName}
+              mode="outlined"
+              style={styles.input}
+            />
+            <TextInput
+              label="Email"
+              value={email}
+              onChangeText={setEmail}
+              mode="outlined"
+              style={styles.input}
+            />
+            {/* Role dropdown only when editing */}
+            {editingUser && (
+              <DropDownPicker
+                open={open}
+                value={role}
+                items={items}
+                setOpen={setOpen}
+                setValue={setRole}
+                setItems={setItems}
+                containerStyle={{ marginBottom: 12 }}
+                placeholder="Select role"
+                style={{ borderColor: "#4CAF50" }}
+              />
+            )}
+            <Button
+              mode="contained"
+              onPress={handleSave}
+              style={styles.saveButton}
+              buttonColor="#4CAF50"
+            >
+              Save
+            </Button>
+          </Modal>
+        </Portal>
       </View>
-
-      {loading ? (
-        <ActivityIndicator
-          animating={true}
-          color="#4CAF50"
-          style={styles.loadingIndicator}
-          size="large"
-        />
-      ) : (
-        <FlatList
-          data={filteredUsers}
-          renderItem={renderUserItem}
-          keyExtractor={(item, index) => item._id || index.toString()}
-          contentContainerStyle={styles.listContainer}
-          onRefresh={fetchUserData}
-          refreshing={isRefreshing}
-        />
-      )}
-
-      <FAB
-        style={styles.fab}
-        icon="plus"
-        onPress={() => navigation.navigate("AddUser")}
-        color="#FFFFFF"
-        backgroundColor="#4CAF50"
-      />
-    </View>
+    </Provider>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#FFFFFF",
-  },
-  listContainer: {
-    padding: 12,
-  },
+  container: { flex: 1, backgroundColor: "#FFFFFF" },
+  listContainer: { padding: 12 },
   card: {
     marginVertical: 6,
     borderRadius: 10,
     elevation: 3,
     backgroundColor: "#FFFFFF",
   },
-  cardTitle: {
-    color: "#4CAF50",
-    fontWeight: "bold",
-  },
-  cardSubtitle: {
-    color: "#000000",
-  },
-  cardContent: {
-    paddingTop: 0,
-    paddingBottom: 0,
-  },
+  cardTitle: { color: "#4CAF50", fontWeight: "bold" },
+  cardSubtitle: { color: "#000000" },
+  cardContent: { paddingTop: 0, paddingBottom: 0 },
   cardActions: {
     flexDirection: "row",
     justifyContent: "space-between",
     paddingRight: 12,
     alignItems: "center",
   },
-  searchContainer: {
-    padding: 12,
-    backgroundColor: "#FFFFFF",
-    elevation: 1,
-  },
-  searchInput: {
-    backgroundColor: "#FFFFFF",
-    borderColor: "#000000",
-  },
-  loadingIndicator: {
-    marginTop: 50,
-  },
+  searchContainer: { padding: 12, backgroundColor: "#FFFFFF", elevation: 1 },
+  searchInput: { backgroundColor: "#FFFFFF" },
+  loadingIndicator: { marginTop: 50 },
   fab: {
     position: "absolute",
     margin: 20,
     right: 0,
     bottom: 0,
     backgroundColor: "#4CAF50",
-    color: "#FFFFFF",
   },
-  listItem: {
-    paddingVertical: 2,
-    minHeight: 35,
+  modalContainer: {
+    backgroundColor: "white",
+    padding: 20,
+    margin: 20,
+    borderRadius: 10,
   },
-  listItemTitle: {
+  modalTitle: {
+    fontSize: 18,
     fontWeight: "bold",
-    color: "#000000",
+    marginBottom: 15,
+    color: "#4CAF50",
   },
-  listItemDescription: {
-    color: "#000000",
-  },
+  input: { marginBottom: 12 },
+  saveButton: { marginTop: 10, borderRadius: 8 },
+  listItem: { paddingVertical: 2, minHeight: 35 },
+  listItemTitle: { fontWeight: "bold", color: "#000000" },
+  listItemDescription: { color: "#000000" },
 });
 
 export default UserScreen;

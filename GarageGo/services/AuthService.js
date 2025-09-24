@@ -30,6 +30,11 @@ const AuthService = {
   },
 };
 
+export const addUser = async (userData) => {
+  const response = await axiosInstance.post("/user/register", userData);
+  return response.data;
+};
+
 export const fetchUsers = async () => {
   const response = await axiosInstance.get("/user");
   return response.data;

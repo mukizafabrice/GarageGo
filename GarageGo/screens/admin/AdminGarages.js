@@ -175,6 +175,13 @@ const AdminGarages = ({ navigation, onRefresh }) => {
 
   return (
     <View style={styles.container}>
+      <Appbar.Header style={styles.appBar}>
+        <Appbar.Content
+          title="Garage Management"
+          titleStyle={styles.appBarTitle}
+        />
+      </Appbar.Header>
+
       <View style={styles.searchContainer}>
         <TextInput
           style={styles.searchInput}

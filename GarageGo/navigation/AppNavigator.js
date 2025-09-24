@@ -28,8 +28,8 @@ const Tab = createBottomTabNavigator();
 const AdminTabs = () => (
   <Tab.Navigator
     screenOptions={{
-      tabBarActiveTintColor: "#4CAF50",
-      tabBarInactiveTintColor: "#1B5E20",
+      tabBarActiveTintColor: "#1B5E20",
+      tabBarInactiveTintColor: "#4CAF50",
       tabBarStyle: styles.tabBar,
       headerStyle: { backgroundColor: "#4CAF50" },
       headerTintColor: "#fff",
