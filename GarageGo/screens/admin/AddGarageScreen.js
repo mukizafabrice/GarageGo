@@ -10,9 +10,10 @@ import {
   Divider,
 } from "react-native-paper";
 import * as Location from "expo-location";
+import * as Notifications from "expo-notifications";
 import DropDownPicker from "react-native-dropdown-picker";
 import { fetchUsers } from "../../services/AuthService";
-import { addGarage } from "../../services/garageService";
+import { createGarage } from "../../services/garageService";
 
 const AddGarageScreen = ({ navigation }) => {
   const [formData, setFormData] = useState({
@@ -48,6 +49,31 @@ const AddGarageScreen = ({ navigation }) => {
       }
     };
     loadUsers();
+
+    const getFcmToken = async () => {
+      try {
+        const { status: existingStatus } =
+          await Notifications.getPermissionsAsync();
+        let finalStatus = existingStatus;
+
+        if (existingStatus !== "granted") {
+          const { status } = await Notifications.requestPermissionsAsync();
+          finalStatus = status;
+        }
+
+        if (finalStatus !== "granted") {
+          console.log("Failed to get push token!");
+          return;
+        }
+
+        const token = (await Notifications.getExpoPushTokenAsync()).data;
+        setFormData((prev) => ({ ...prev, fcmToken: token }));
+      } catch (error) {
+        console.error("Error getting FCM token:", error);
+      }
+    };
+
+    getFcmToken();
   }, []);
 
   const handleFetchAddress = async () => {
@@ -127,7 +153,7 @@ const AddGarageScreen = ({ navigation }) => {
         latitude: parseFloat(formData.latitude),
         longitude: parseFloat(formData.longitude),
       };
-      await addGarage(garageData);
+      await createGarage(garageData);
       Alert.alert("Success", "Garage added successfully!");
       navigation.goBack();
     } catch (error) {
@@ -223,7 +249,7 @@ const AddGarageScreen = ({ navigation }) => {
                 textColor="#FFFFFF"
                 disabled={isFetchingAddress}
               >
-                Use GPS
+                <Text>Use GPS</Text>
               </Button>
               <Button
                 mode="contained"
@@ -235,7 +261,7 @@ const AddGarageScreen = ({ navigation }) => {
                 textColor="#FFFFFF"
                 disabled={isFetchingLocation}
               >
-                Fetch Address
+                <Text>Fetch Address</Text>
               </Button>
             </View>
             {fetchAddressMessage ? (
@@ -257,15 +283,6 @@ const AddGarageScreen = ({ navigation }) => {
               mode="outlined"
               style={styles.modalInput}
             />
-            <TextInput
-              label="FCM Token"
-              value={formData.fcmToken}
-              onChangeText={(text) =>
-                setFormData({ ...formData, fcmToken: text })
-              }
-              mode="outlined"
-              style={styles.modalInput}
-            />
           </Card.Content>
         </Card>
       </ScrollView>
@@ -275,7 +292,7 @@ const AddGarageScreen = ({ navigation }) => {
           mode="outlined"
           textColor="#000000"
         >
-          Cancel
+          <Text>Cancel</Text>
         </Button>
         <Button
           onPress={handleSave}
@@ -284,7 +301,7 @@ const AddGarageScreen = ({ navigation }) => {
           buttonColor="#4CAF50"
           textColor="#FFFFFF"
         >
-          Save
+          <Text>Save</Text>
         </Button>
       </View>
     </View>

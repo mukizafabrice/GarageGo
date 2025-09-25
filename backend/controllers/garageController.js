@@ -1,8 +1,9 @@
-// controllers/garageController.js
 import Garage from "../models/Garage.js";
-import admin from "../config/firebase.js";
-import Notification from "../models/Notification.js";
 import { calculateDistance } from "../utils/distance.js";
+import { Expo } from "expo-server-sdk";
+
+// Initialize a new Expo SDK client
+const expo = new Expo();
 
 /**
  * @desc    Create a new garage
@@ -83,63 +84,27 @@ export const getGarageById = async (req, res) => {
   }
 };
 
-export const getNearbyGarages = async (req, res) => {
+/**
+ * @desc    Get a single garage by User ID
+ * @route   GET /api/garages/user/:userId
+ * @access  Public
+ */
+export const getGarageByUserId = async (req, res) => {
   try {
-    const { lat, lng, radius } = req.query;
+    // We use findOne since a user should only have one garage.
+    const garage = await Garage.findOne({ userId: req.params.userId }).populate(
+      "userId",
+      "name email"
+    );
 
-    if (!lat || !lng) {
-      return res.status(400).json({
-        success: false,
-        message: "Latitude and longitude are required",
-      });
+    if (!garage) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Garage not found for this user." });
     }
 
-    const maxDistance = radius ? parseInt(radius) : 5000;
-
-    // Simple search (replace with GeoJSON for production)
-    const garages = await Garage.find({
-      latitude: { $gte: parseFloat(lat) - 0.05, $lte: parseFloat(lat) + 0.05 },
-      longitude: { $gte: parseFloat(lng) - 0.05, $lte: parseFloat(lng) + 0.05 },
-    });
-
-    let notificationsSent = 0;
-
-    for (const garage of garages) {
-      if (garage.fcmToken) {
-        const message = {
-          notification: {
-            title: "🚨 Assistance Request",
-            body: `Driver needs help near (${lat}, ${lng})`,
-          },
-          token: garage.fcmToken,
-        };
-
-        try {
-          await admin.messaging().send(message);
-          notificationsSent++;
-          console.log(
-            `✅ Notification sent to ${garage.name} (FCM token: ${garage.fcmToken})`
-          );
-        } catch (err) {
-          console.error(
-            `❌ Failed to send notification to ${garage.name}`,
-            err
-          );
-        }
-      } else {
-        console.log(
-          `⚠️ No FCM token for ${garage.name}, skipping notification`
-        );
-      }
-    }
-
-    res.json({
-      success: true,
-      data: garages,
-      message: `Notifications sent to ${notificationsSent} garages`,
-    });
+    res.json({ success: true, data: garage });
   } catch (error) {
-    console.error("❌ Error in getNearbyGarages:", error);
     res.status(500).json({ success: false, message: error.message });
   }
 };
@@ -153,72 +118,95 @@ export const findNearestGarage = async (req, res) => {
   try {
     const { latitude, longitude } = req.body;
 
-    if (!latitude || !longitude) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Location required" });
-    }
-
-    const garages = await Garage.find();
-    if (garages.length === 0) {
-      return res
-        .status(404)
-        .json({ success: false, message: "No garages available" });
-    }
-
-    // Find nearest garage
-    let nearest = garages[0];
-    let minDist = calculateDistance(
-      latitude,
-      longitude,
-      nearest.latitude,
-      nearest.longitude
+    console.log(
+      `✅ Received request from driver at Lat: ${latitude}, Lng: ${longitude}`
     );
 
-    garages.forEach((garage) => {
-      const dist = calculateDistance(
+    const allGarages = await Garage.find();
+
+    console.log(`🔎 Total garages found in database: ${allGarages.length}`);
+
+    if (allGarages.length === 0) {
+      return res.json({
+        success: false,
+        message: "No garages found in the database.",
+      });
+    }
+
+    let nearestGarage = null;
+    let minDistance = Infinity;
+
+    for (const garage of allGarages) {
+      const distance = calculateDistance(
         latitude,
         longitude,
         garage.latitude,
         garage.longitude
       );
-      if (dist < minDist) {
-        nearest = garage;
-        minDist = dist;
-      }
-    });
-
-    // Send notification if FCM token exists
-    if (nearest.fcmToken) {
-      const message = {
-        notification: {
-          title: "🚨 Assistance Request",
-          body: `Driver near (${latitude}, ${longitude}) needs help.`,
-        },
-        token: nearest.fcmToken,
-        data: {
-          driverLat: latitude.toString(),
-          driverLng: longitude.toString(),
-          garageId: nearest._id.toString(),
-        },
-      };
-
-      try {
-        await admin.messaging().send(message);
-        console.log(`✅ Notification sent to nearest garage: ${nearest.name}`);
-      } catch (err) {
-        console.error("❌ Failed to send notification", err);
+      if (distance < minDistance) {
+        minDistance = distance;
+        nearestGarage = garage;
       }
     }
 
-    res.json({
-      success: true,
-      nearestGarage: nearest,
-      distance: minDist,
-      message: "Nearest garage found and notified",
-    });
+    if (!nearestGarage || !nearestGarage.fcmToken) {
+      console.log("No nearest garage with a valid FCM token was found.");
+      return res.json({
+        success: false,
+        message: "No nearest garage with a valid FCM token was found.",
+      });
+    }
+
+    // Check that the nearest garage's token is a valid Expo push token
+    if (!Expo.isExpoPushToken(nearestGarage.fcmToken)) {
+      console.error(
+        `❌ Push token ${nearestGarage.fcmToken} is not a valid Expo push token.`
+      );
+      return res.json({
+        success: false,
+        message: "Failed to send notification: Invalid push token.",
+      });
+    }
+
+    console.log(`✅ Found nearest garage: ${nearestGarage.name}`);
+
+    // Create the message object in the format required by expo-server-sdk
+    const message = {
+      to: nearestGarage.fcmToken,
+      sound: "default",
+      title: "🚨 New Assistance Request",
+      body: "A driver needs your help! Tap for details.",
+      data: {
+        driverLat: latitude.toString(),
+        driverLng: longitude.toString(),
+      },
+    };
+
+    try {
+      // Send the notification using the Expo SDK
+      let ticketChunk = await expo.sendPushNotificationsAsync([message]);
+      console.log(
+        `✅ Notification sent to nearest garage: ${nearestGarage.name}`,
+        ticketChunk
+      );
+      res.json({
+        success: true,
+        nearestGarage: nearestGarage,
+        message: "Nearest garage found and notified successfully.",
+      });
+    } catch (error) {
+      console.error(
+        `❌ Failed to send notification to ${nearestGarage.name}`,
+        error
+      );
+      res.json({
+        success: false,
+        message: "Failed to send notification to the nearest garage.",
+      });
+    }
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    console.error(`❌ Error in findNearestGarage: ${error.message}`);
+    res.status(500).json({ success: false, message: "Server error" });
   }
 };
 

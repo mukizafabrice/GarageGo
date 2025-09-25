@@ -4,9 +4,10 @@ import {
   createGarage,
   getGarages,
   getGarageById,
-  getNearbyGarages,
+  getGarageByUserId,
   updateGarage,
   deleteGarage,
+  findNearestGarage, // ✅ Import the new controller function
 } from "../controllers/garageController.js";
 
 const router = express.Router();
@@ -24,12 +25,18 @@ router.get("/", getGarages);
 // @route   GET /api/garages/nearby?lat=xx&lng=yy&radius=5000
 // @desc    Get nearby garages using coordinates
 // @access  Public
-router.get("/nearby", getNearbyGarages);
+// router.get("/nearby", getNearbyGarages);
+
+// @route   POST /api/garages/nearest
+// @desc    Find the single nearest garage and notify it
+// @access  Public
+router.post("/nearest", findNearestGarage); // ✅ Add the new route here
 
 // @route   GET /api/garages/:id
 // @desc    Get single garage by ID
 // @access  Public
 router.get("/:id", getGarageById);
+router.get("/user/:userId", getGarageByUserId);
 
 // @route   PUT /api/garages/:id
 // @desc    Update a garage

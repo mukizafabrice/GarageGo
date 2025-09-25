@@ -18,12 +18,33 @@ export const getGarageById = async (id) => {
   return response.data;
 };
 
+// ✅ Get a single garage by User ID
+export const getGarageByUserId = async (userId) => {
+  const response = await axiosInstance.get(`/garages/user/${userId}`);
+  return response.data;
+};
+
 // Get nearby garages by coordinates
 export const getNearbyGarages = async (lat, lng, radius = 5000) => {
   const response = await axiosInstance.get("/garages/nearby", {
     params: { lat, lng, radius },
   });
   return response.data;
+};
+
+// garageservice.js
+
+export const findNearestGarage = async (latitude, longitude) => {
+  try {
+    const response = await axiosInstance.post("/garages/nearest", {
+      latitude,
+      longitude,
+    });
+    return response.data;
+  } catch (error) {
+    console.error("Error finding nearest garage:", error);
+    throw error;
+  }
 };
 
 // Update a garage

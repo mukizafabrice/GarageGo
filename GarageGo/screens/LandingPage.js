@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -9,10 +9,13 @@ import {
   Alert,
 } from "react-native";
 import { Button } from "react-native-paper";
-import MapView from "react-native-maps";
+import MapView, { Marker, Polyline } from "react-native-maps";
 import * as Location from "expo-location";
 import { useNavigation } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
+import { findNearestGarage } from "../services/garageService.js";
+import axios from "axios";
+import { decode as decodePolyline } from "@mapbox/polyline";
 
 // Screen Dimensions
 const { width, height } = Dimensions.get("window");
@@ -30,12 +33,16 @@ const Header = ({ onProfilePress }) => (
 );
 
 const LandingPage = () => {
-  const [location, setLocation] = useState(null);
+  const [userLocation, setUserLocation] = useState(null);
+  const [nearestGarage, setNearestGarage] = useState(null);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [routeCoordinates, setRouteCoordinates] = useState([]);
   const navigation = useNavigation();
 
-  // Request location permission and initial location
+  // Reference for the MapView component to control its view
+  const mapRef = useRef(null);
+
   useEffect(() => {
     (async () => {
       try {
@@ -44,8 +51,9 @@ const LandingPage = () => {
           setError("Permission to access location was denied");
           return;
         }
+
         const loc = await Location.getCurrentPositionAsync({});
-        setLocation(loc.coords);
+        setUserLocation(loc.coords);
       } catch (err) {
         console.error(err);
         setError("Error getting location");
@@ -57,45 +65,122 @@ const LandingPage = () => {
     navigation.navigate("Login");
   };
 
-  // Show alert with current coordinates
-  const handleFindPress = () => {
-    if (!location) {
+  const handleFindPress = async () => {
+    if (!userLocation) {
       Alert.alert("Location not available", "Please allow location access.");
       return;
     }
-    Alert.alert(
-      "Current Coordinates",
-      `Latitude: ${location.latitude}\nLongitude: ${location.longitude}`
-    );
+
+    setLoading(true);
+    setRouteCoordinates([]);
+    setNearestGarage(null);
+
+    try {
+      const response = await findNearestGarage(
+        userLocation.latitude,
+        userLocation.longitude
+      );
+
+      if (response.success && response.nearestGarage) {
+        const garage = response.nearestGarage;
+        setNearestGarage(garage);
+        Alert.alert("Success", `Nearest garage found: ${garage.name}`);
+
+        const osrmUrl = `http://router.project-osrm.org/route/v1/driving/${userLocation.longitude},${userLocation.latitude};${garage.longitude},${garage.latitude}?overview=full&geometries=polyline`;
+
+        const routeResponse = await axios.get(osrmUrl);
+        const polyline = routeResponse.data.routes[0].geometry;
+        const decodedCoords = decodePolyline(polyline).map((point) => ({
+          latitude: point[0],
+          longitude: point[1],
+        }));
+
+        setRouteCoordinates(decodedCoords);
+
+        // Adjust map view to fit both markers and the route
+        if (mapRef.current) {
+          mapRef.current.fitToCoordinates(
+            [
+              {
+                latitude: userLocation.latitude,
+                longitude: userLocation.longitude,
+              },
+              { latitude: garage.latitude, longitude: garage.longitude },
+              ...decodedCoords,
+            ],
+            {
+              edgePadding: { top: 50, right: 50, bottom: 50, left: 50 },
+              animated: true,
+            }
+          );
+        }
+      } else {
+        Alert.alert(
+          "Error",
+          response.message || "Failed to find nearest garage."
+        );
+      }
+    } catch (err) {
+      console.error("Error fetching data:", err);
+      Alert.alert(
+        "Error",
+        "Could not connect to the server or routing service."
+      );
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <SafeAreaView style={styles.container}>
       <Header onProfilePress={handleProfilePress} />
-
       <View style={styles.mapContainer}>
-        {location ? (
+        {userLocation ? (
           <MapView
+            ref={mapRef} // Set the ref here
             style={styles.map}
             initialRegion={{
-              latitude: location.latitude,
-              longitude: location.longitude,
+              latitude: userLocation.latitude,
+              longitude: userLocation.longitude,
               latitudeDelta: 0.05,
               longitudeDelta: 0.05,
             }}
             showsUserLocation={true}
-          />
+          >
+            {/* Marker for the nearest garage */}
+            {nearestGarage && (
+              <Marker
+                coordinate={{
+                  latitude: nearestGarage.latitude,
+                  longitude: nearestGarage.longitude,
+                }}
+                title={nearestGarage.name}
+                description="Nearest Garage"
+                pinColor="blue"
+              />
+            )}
+
+            {/* Draw the route using a Polyline */}
+            {routeCoordinates.length > 0 && (
+              <Polyline
+                coordinates={routeCoordinates}
+                strokeWidth={5}
+                strokeColor="red"
+              />
+            )}
+          </MapView>
         ) : (
           <Text style={styles.loadingText}>{error || "Loading map..."}</Text>
         )}
-
         <View style={styles.findButtonContainer}>
           <Button
             mode="contained"
-            onPress={handleFindPress} // ✅ alert logic
+            onPress={handleFindPress}
             style={styles.findButton}
+            loading={loading}
+            disabled={loading}
           >
-            Find
+            {loading ? "Finding..." : "Find Nearest Garage"}
           </Button>
         </View>
       </View>
