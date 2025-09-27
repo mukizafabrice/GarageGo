@@ -1,28 +1,40 @@
 import React from "react";
-import { View, ActivityIndicator, StyleSheet } from "react-native";
+import { View, ActivityIndicator, StyleSheet, Platform } from "react-native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useAuth } from "../context/AuthContext";
 
-// Import Admin Screens
+// --- Admin Screens ---
 import AdminHome from "../screens/admin/AdminHome";
 import AdminGarages from "../screens/admin/AdminGarages";
 import AdminSettings from "../screens/admin/AdminSettings";
 import AddGarage from "../screens/admin/AddGarageScreen";
 import EditGarage from "../screens/admin/EditGarageScreen";
 import UserScreen from "../screens/admin/UserScreen";
-// import UserDetails from "../screens/admin/UserDetails";
-
-// Import Garage Screens
-import GarageHome from "../screens/garage/GarageHome";
 import Traveller from "../screens/garage/Traveller";
 import GarageSettings from "../screens/garage/GarageSettings";
-// import AddVehicle from "../screens/garage/AddVehicle";
-// import DriverDetails from "../screens/garage/DriverDetails";
+import GarageHome from "../screens/garage/GarageHome";
 
+// --- Stack & Tab Navigators ---
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
+
+// --- Common Tab Bar Styles ---
+const tabBarBaseStyle = {
+  backgroundColor: "#fff",
+  height: Platform.OS === "ios" ? 80 : 70,
+  paddingBottom: Platform.OS === "ios" ? 20 : 10,
+  paddingTop: 5,
+  borderTopWidth: 0.5,
+  borderTopColor: "#ccc",
+  elevation: 5,
+};
+
+const tabLabelStyle = {
+  fontSize: 12,
+  marginBottom: 5,
+};
 
 // --- Admin Tabs ---
 const AdminTabs = () => (
@@ -30,10 +42,12 @@ const AdminTabs = () => (
     screenOptions={{
       tabBarActiveTintColor: "#1B5E20",
       tabBarInactiveTintColor: "#4CAF50",
-      tabBarStyle: styles.tabBar,
+      tabBarStyle: tabBarBaseStyle,
+      tabBarLabelStyle: tabLabelStyle,
       headerStyle: { backgroundColor: "#4CAF50" },
       headerTintColor: "#fff",
       headerTitleStyle: { fontWeight: "bold" },
+      tabBarShowLabel: true,
     }}
   >
     <Tab.Screen
@@ -87,12 +101,14 @@ const AdminTabs = () => (
 const GarageTabs = () => (
   <Tab.Navigator
     screenOptions={{
-      tabBarActiveTintColor: "#4CAF50",
-      tabBarInactiveTintColor: "#1B5E20",
-      tabBarStyle: styles.tabBar,
+      tabBarActiveTintColor: "#1B5E20",
+      tabBarInactiveTintColor: "#4CAF50",
+      tabBarStyle: tabBarBaseStyle,
+      tabBarLabelStyle: tabLabelStyle,
       headerStyle: { backgroundColor: "#4CAF50" },
       headerTintColor: "#fff",
       headerTitleStyle: { fontWeight: "bold" },
+      tabBarShowLabel: true,
     }}
   >
     <Tab.Screen
@@ -149,10 +165,7 @@ const AppNavigator = () => {
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       {user?.role === "admin" ? (
         <>
-          {/* Admin Tabs */}
           <Stack.Screen name="AdminTabs" component={AdminTabs} />
-
-          {/* Stack screens outside tabs */}
           <Stack.Screen
             name="AddGarage"
             component={AddGarage}
@@ -160,6 +173,7 @@ const AppNavigator = () => {
               headerShown: true,
               title: "Add Garage",
               headerStyle: { backgroundColor: "#4CAF50" },
+              headerTintColor: "#fff",
             }}
           />
           <Stack.Screen
@@ -169,30 +183,13 @@ const AppNavigator = () => {
               headerShown: true,
               title: "Edit Garage",
               headerStyle: { backgroundColor: "#4CAF50" },
+              headerTintColor: "#fff",
             }}
           />
-          {/* <Stack.Screen
-            name="UserDetails"
-            component={UserDetails}
-            options={{ headerShown: true, title: "User Details" }}
-          /> */}
         </>
       ) : (
         <>
-          {/* Garage Tabs */}
           <Stack.Screen name="GarageTabs" component={GarageTabs} />
-
-          {/* Stack screens outside tabs */}
-          {/* <Stack.Screen
-            name="AddVehicle"
-            component={AddVehicle}
-            options={{ headerShown: true, title: "Add Vehicle" }}
-          /> */}
-          {/* <Stack.Screen
-            name="DriverDetails"
-            component={DriverDetails}
-            options={{ headerShown: true, title: "Driver Details" }}
-          /> */}
         </>
       )}
     </Stack.Navigator>

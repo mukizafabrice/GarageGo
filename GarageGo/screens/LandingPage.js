@@ -84,7 +84,10 @@ const LandingPage = () => {
       if (response.success && response.nearestGarage) {
         const garage = response.nearestGarage;
         setNearestGarage(garage);
-        Alert.alert("Success", `Nearest garage found: ${garage.name}`);
+        Alert.alert(
+          "Success",
+          `Nearest garage found: ${garage.name}\nPhone number: ${garage.phone}`
+        );
 
         const osrmUrl = `http://router.project-osrm.org/route/v1/driving/${userLocation.longitude},${userLocation.latitude};${garage.longitude},${garage.latitude}?overview=full&geometries=polyline`;
 
@@ -155,6 +158,7 @@ const LandingPage = () => {
                   longitude: nearestGarage.longitude,
                 }}
                 title={nearestGarage.name}
+                phoneNumber={nearestGarage.phone}
                 description="Nearest Garage"
                 pinColor="blue"
               />
