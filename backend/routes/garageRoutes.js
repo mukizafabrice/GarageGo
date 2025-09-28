@@ -9,7 +9,7 @@ import {
   deleteGarage,
   findNearestGarage, // ✅ Import the new controller function
 } from "../controllers/garageController.js";
-
+import { updateGarageToken as updateTokenController } from "../controllers/garageController.js";
 const router = express.Router();
 
 // @route   POST /api/garages
@@ -31,7 +31,16 @@ router.get("/", getGarages);
 // @desc    Find the single nearest garage and notify it
 // @access  Public
 router.post("/nearest", findNearestGarage); // ✅ Add the new route here
+router.post("/updateToken", async (req, res) => {
+  const { garageId, fcmToken } = req.body;
 
+  try {
+    const garage = await updateTokenController(garageId, fcmToken);
+    res.json({ success: true, message: "Token updated", garage });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
 // @route   GET /api/garages/:id
 // @desc    Get single garage by ID
 // @access  Public

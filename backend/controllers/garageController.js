@@ -251,3 +251,13 @@ export const deleteGarage = async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
+export const updateGarageToken = async (garageId, fcmToken) => {
+  console.log("Updating token for garageId:", garageId);
+  const garage = await Garage.findByIdAndUpdate(
+    garageId,
+    { fcmToken },
+    { new: true }
+  );
+  if (!garage) throw new Error("Garage not found");
+  return garage;
+};
