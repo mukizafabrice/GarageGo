@@ -1,31 +1,66 @@
 import React, { useState, useEffect, useRef } from "react";
 import { View, StyleSheet, Text, ActivityIndicator } from "react-native";
-import { Appbar, Card } from "react-native-paper";
-import MapView, { Marker } from "react-native-maps";
+// Import Polyline for drawing the route
+import MapView, { Marker, Polyline } from "react-native-maps";
+// Removed MapViewDirections import
+import * as Notifications from "expo-notifications";
 import { getGarageByUserId } from "../../services/garageService";
 import { useAuth } from "../../context/AuthContext";
+// Import Axios and the polyline decoder
+import axios from "axios";
+import { decode as decodePolyline } from "@mapbox/polyline";
 
-const DriverLocationScreen = () => {
+// NOTE: GOOGLE_MAPS_API_KEY is removed as per your request
+
+// Define the OSRM public server URL for routing
+const OSRM_ROUTING_URL = "http://router.project-osrm.org/route/v1/driving/";
+
+const GarageMapScreen = () => {
   const [garageLocation, setGarageLocation] = useState(null);
   const [garageInfo, setGarageInfo] = useState(null);
+  const [driverLocation, setDriverLocation] = useState(null);
+  const [routeCoordinates, setRouteCoordinates] = useState([]); // NEW state for the route
   const [isLoading, setIsLoading] = useState(true);
+
+  const mapRef = useRef(null);
 
   const { user } = useAuth();
   const userId = user?._id;
 
-  const mapRef = useRef(null);
+  // Function to fetch and decode the driving route
+  const fetchRoute = async (origin, destination) => {
+    if (!origin || !destination) return;
 
+    // OSRM API uses Longitude, Latitude order
+    const osrmUrl =
+      `${OSRM_ROUTING_URL}${origin.longitude},${origin.latitude};${destination.longitude},${destination.latitude}` +
+      `?overview=full&geometries=polyline`;
+
+    try {
+      const response = await axios.get(osrmUrl);
+      const polyline = response.data.routes[0].geometry;
+
+      const decodedCoords = decodePolyline(polyline).map((point) => ({
+        latitude: point[0],
+        longitude: point[1],
+      }));
+
+      setRouteCoordinates(decodedCoords);
+    } catch (error) {
+      console.error("Error fetching OSRM route:", error);
+      setRouteCoordinates([]); // Clear route on error
+    }
+  };
+
+  // 1. Fetch garage data (same as before)
   useEffect(() => {
+    // ... (Your existing fetchGarage logic remains here)
     const fetchGarage = async () => {
-      if (!userId) {
-        console.warn("No userId found in AuthContext");
-        setIsLoading(false);
-        return;
-      }
+      if (!userId) return setIsLoading(false);
 
       try {
         const response = await getGarageByUserId(userId);
-        const data = response.data; // ✅ nested data
+        const data = response.data;
 
         if (data.latitude != null && data.longitude != null) {
           const coords = {
@@ -35,29 +70,66 @@ const DriverLocationScreen = () => {
           setGarageLocation(coords);
           setGarageInfo({ name: data.name, address: data.address });
 
-          // animate map to garage location
-          if (mapRef.current) {
-            mapRef.current.animateToRegion(
-              {
-                ...coords,
-                latitudeDelta: 0.01,
-                longitudeDelta: 0.01,
-              },
-              1000
-            );
-          }
-        } else {
-          console.warn("Garage coordinates missing:", data);
+          mapRef.current?.animateToRegion(
+            {
+              ...coords,
+              latitudeDelta: 0.05,
+              longitudeDelta: 0.05,
+            },
+            1000
+          );
         }
-      } catch (error) {
-        console.error("Error fetching garage location:", error);
+      } catch (err) {
+        console.error("Error fetching garage location:", err);
       } finally {
         setIsLoading(false);
       }
     };
-
     fetchGarage();
+    // ... (end of existing logic)
   }, [userId]);
+
+  // 2. Listen for driver coordinates AND fetch route
+  useEffect(() => {
+    const subscription = Notifications.addNotificationReceivedListener(
+      (notif) => {
+        const { driverLat, driverLng } = notif.request.content.data || {};
+        if (driverLat && driverLng) {
+          const newDriverLocation = {
+            latitude: parseFloat(driverLat),
+            longitude: parseFloat(driverLng),
+          };
+          setDriverLocation(newDriverLocation);
+
+          // Only fetch route if garage location is already known
+          if (garageLocation) {
+            fetchRoute(garageLocation, newDriverLocation);
+          }
+
+          // Zoom map to include both points (same as before)
+          if (garageLocation && mapRef.current) {
+            mapRef.current.fitToCoordinates(
+              [garageLocation, newDriverLocation],
+              {
+                edgePadding: { top: 100, right: 100, bottom: 100, left: 100 },
+                animated: true,
+              }
+            );
+          }
+        }
+      }
+    );
+
+    return () => subscription.remove();
+  }, [garageLocation]); // Dependency on garageLocation is crucial here
+
+  // 3. Re-fetch route if garageLocation is set AFTER initial render (e.g. if driver was first)
+  // This is a safety check, though the logic above should cover most cases.
+  useEffect(() => {
+    if (garageLocation && driverLocation) {
+      fetchRoute(garageLocation, driverLocation);
+    }
+  }, [garageLocation, driverLocation]);
 
   if (isLoading) {
     return (
@@ -70,69 +142,47 @@ const DriverLocationScreen = () => {
 
   return (
     <View style={styles.container}>
-      <Appbar.Header style={styles.appBar}>
-        <Appbar.Content
-          title="Garage Location Map"
-          titleStyle={styles.appBarTitle}
-        />
-      </Appbar.Header>
+      <MapView
+        ref={mapRef}
+        style={styles.map}
+        initialRegion={{
+          latitude: garageLocation?.latitude || 0,
+          longitude: garageLocation?.longitude || 0,
+          latitudeDelta: 0.05,
+          longitudeDelta: 0.05,
+        }}
+      >
+        {garageLocation && (
+          <Marker
+            coordinate={garageLocation}
+            title={garageInfo?.name || "Garage"}
+            description={garageInfo?.address || ""}
+            pinColor="blue"
+          />
+        )}
 
-      <View style={styles.mapContainer}>
-        <MapView
-          ref={mapRef}
-          style={styles.map}
-          initialRegion={{
-            latitude: garageLocation?.latitude || 0,
-            longitude: garageLocation?.longitude || 0,
-            latitudeDelta: 0.05,
-            longitudeDelta: 0.05,
-          }}
-        >
-          {garageLocation && (
-            <Marker
-              coordinate={garageLocation}
-              title={garageInfo?.name || "Garage"}
-              description={garageInfo?.address || ""}
-              pinColor="blue"
-            />
-          )}
-        </MapView>
-      </View>
+        {driverLocation && (
+          <Marker coordinate={driverLocation} title="Driver" pinColor="red" />
+        )}
 
-      <View style={styles.infoCard}>
-        <Card style={styles.card}>
-          <Card.Content>
-            {garageLocation ? (
-              <View>
-                <Text style={styles.cardText}>Garage Coordinates:</Text>
-                <Text>
-                  Lat: {garageLocation.latitude.toFixed(6)}, Lng:{" "}
-                  {garageLocation.longitude.toFixed(6)}
-                </Text>
-                <Text>Name: {garageInfo?.name}</Text>
-                <Text>Address: {garageInfo?.address}</Text>
-              </View>
-            ) : (
-              <Text style={styles.cardText}>No garage location available.</Text>
-            )}
-          </Card.Content>
-        </Card>
-      </View>
+        {/* 4. Draw the route using Polyline and the fetched coordinates */}
+        {routeCoordinates.length > 0 && (
+          <Polyline
+            coordinates={routeCoordinates}
+            strokeWidth={4}
+            strokeColor="green"
+          />
+        )}
+      </MapView>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f5f5f5" },
+  container: { flex: 1 },
+  map: { ...StyleSheet.absoluteFillObject },
   loadingContainer: { flex: 1, justifyContent: "center", alignItems: "center" },
   loadingText: { marginTop: 10, fontSize: 16, color: "#555" },
-  appBar: { backgroundColor: "#4CAF50" },
-  appBarTitle: { color: "#fff", fontWeight: "600" },
-  mapContainer: { flex: 1, overflow: "hidden", alignSelf: "stretch" },
-  map: { ...StyleSheet.absoluteFillObject },
-  infoCard: { position: "absolute", bottom: 20, left: 20, right: 20 },
-  card: { borderRadius: 10, elevation: 4 },
-  cardText: { fontWeight: "bold", marginBottom: 5 },
 });
 
-export default DriverLocationScreen;
+export default GarageMapScreen;
