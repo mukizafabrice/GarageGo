@@ -1,12 +1,11 @@
-// screens/SettingsScreen.js
-import React, { useState, useContext } from "react";
+import React, { useState } from "react";
 import {
   View,
   StyleSheet,
   ScrollView,
   Alert,
   Switch,
-  Image,
+  TouchableOpacity,
 } from "react-native";
 import {
   Text,
@@ -15,14 +14,20 @@ import {
   Avatar,
   Button,
   useTheme,
+  Card, // Import Card for the profile section
 } from "react-native-paper";
-import { useAuth } from "../../context/AuthContext"; // assuming you have auth context
+import { useAuth } from "../../context/AuthContext";
+import { Ionicons } from "@expo/vector-icons"; // For extra icons
 
-const SettingsScreen = () => {
-  const { colors } = useTheme(); // for dark/light mode
+// Define Brand Color
+const PRIMARY_COLOR = "#4CAF50";
+
+const SettingsScreen = ({ navigation }) => {
+  const { colors } = useTheme();
   const { user, logout } = useAuth(); // user info and logout function
 
   // State
+  // NOTE: In a real app, these states (isDarkMode) would typically be managed by a global theme context
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [language, setLanguage] = useState("English");
@@ -32,149 +37,270 @@ const SettingsScreen = () => {
     setNotificationsEnabled(!notificationsEnabled);
 
   const handleLogout = () => {
-    Alert.alert("Logout", "Are you sure you want to logout?", [
+    Alert.alert("Logout", "Are you sure you want to sign out of GarageGo?", [
       { text: "Cancel", style: "cancel" },
-      { text: "Logout", style: "destructive", onPress: logout },
+      { text: "Sign Out", style: "destructive", onPress: logout },
     ]);
+  };
+
+  const handleNavigation = (screen, alertTitle) => {
+    // In a real app, you would use navigation.navigate(screen);
+    Alert.alert(alertTitle, `${alertTitle} screen coming soon`);
   };
 
   return (
     <ScrollView
       style={[styles.container, { backgroundColor: colors.background }]}
+      contentContainerStyle={styles.contentContainer}
     >
-      {/* Profile Section */}
-      <View style={styles.profileContainer}>
-        {/* <Avatar.Image
-          size={80}
-          source={user?.avatar || require("../../assets/avatar.png")}
-        /> */}
-        <View style={styles.profileText}>
-          <Text variant="titleMedium" style={{ color: colors.text }}>
-            {user?.name || "Guest User"}
-          </Text>
-          <Text variant="bodyMedium" style={{ color: colors.text }}>
-            {user?.email || "guest@example.com"}
-          </Text>
+      {/* --------------------- 1. Elevated Profile Card --------------------- */}
+      <Card style={[styles.profileCard, { backgroundColor: colors.surface }]}>
+        <View style={styles.profileCardContent}>
+          {/* Avatar Area */}
+          <Avatar.Icon
+            size={70}
+            icon="car-wrench" // Use a relevant icon since avatar source is commented
+            style={{ backgroundColor: PRIMARY_COLOR }}
+            color="#FFFFFF"
+          />
+          <View style={styles.profileText}>
+            <Text
+              variant="titleLarge"
+              style={[styles.userName, { color: colors.onSurface }]}
+            >
+              {user?.name || "GarageGo User"}
+            </Text>
+            <Text
+              variant="bodyMedium"
+              style={{ color: colors.onSurfaceVariant }}
+            >
+              {user?.email || "user@garagego.com"}
+            </Text>
+          </View>
         </View>
-      </View>
 
-      <Divider style={{ marginVertical: 10 }} />
-
-      {/* App Settings */}
-      <List.Section>
-        <Text
-          variant="titleMedium"
-          style={[styles.sectionTitle, { color: colors.text }]}
+        {/* Action Button for Profile */}
+        <Button
+          mode="outlined"
+          icon="account-edit-outline"
+          onPress={() => handleNavigation("ProfileEdit", "Update Profile")}
+          labelStyle={{ color: PRIMARY_COLOR }}
+          style={styles.manageAccountButton}
         >
-          App Settings
-        </Text>
+          Manage Account
+        </Button>
+      </Card>
 
+      <Divider style={styles.sectionDivider} />
+
+      {/* --------------------- 2. App Preferences --------------------- */}
+      <List.Section
+        title="APP PREFERENCES"
+        titleStyle={styles.sectionTitleStyle}
+      >
         {/* Dark/Light Mode */}
         <List.Item
           title="Dark Mode"
           description="Switch between light and dark theme"
-          left={(props) => <List.Icon {...props} icon="theme-light-dark" />}
-          right={() => (
-            <Switch value={isDarkMode} onValueChange={toggleDarkMode} />
+          left={(props) => (
+            <List.Icon
+              {...props}
+              icon="theme-light-dark"
+              color={PRIMARY_COLOR}
+            />
           )}
+          right={() => (
+            <Switch
+              value={isDarkMode}
+              onValueChange={toggleDarkMode}
+              color={PRIMARY_COLOR}
+            />
+          )}
+          style={styles.listItem}
         />
 
         {/* Notifications */}
         <List.Item
           title="Notifications"
-          description="Enable or disable notifications"
-          left={(props) => <List.Icon {...props} icon="bell-ring-outline" />}
+          description="Enable or disable push notifications"
+          left={(props) => (
+            <List.Icon
+              {...props}
+              icon="bell-ring-outline"
+              color={PRIMARY_COLOR}
+            />
+          )}
           right={() => (
             <Switch
               value={notificationsEnabled}
               onValueChange={toggleNotifications}
+              color={PRIMARY_COLOR}
             />
           )}
+          style={styles.listItem}
         />
 
         {/* Language */}
         <List.Item
           title="Language"
           description={language}
-          left={(props) => <List.Icon {...props} icon="translate" />}
-          onPress={() =>
-            Alert.alert("Select Language", "Language picker coming soon")
-          }
+          left={(props) => (
+            <List.Icon {...props} icon="translate" color={PRIMARY_COLOR} />
+          )}
+          right={(props) => <List.Icon {...props} icon="chevron-right" />}
+          onPress={() => handleNavigation("LanguageSelect", "Select Language")}
+          style={styles.listItem}
         />
       </List.Section>
 
-      <Divider style={{ marginVertical: 10 }} />
+      <Divider style={styles.sectionDivider} />
 
-      {/* Account Settings */}
-      <List.Section>
-        <Text
-          variant="titleMedium"
-          style={[styles.sectionTitle, { color: colors.text }]}
-        >
-          Account
-        </Text>
-
-        <List.Item
-          title="Change Profile"
-          description="Update your personal information"
-          left={(props) => (
-            <List.Icon {...props} icon="account-circle-outline" />
-          )}
-          onPress={() =>
-            Alert.alert("Update Profile", "Profile update screen coming soon")
-          }
-        />
-
+      {/* --------------------- 3. Security and Legal --------------------- */}
+      <List.Section
+        title="SECURITY & LEGAL"
+        titleStyle={styles.sectionTitleStyle}
+      >
+        {/* Change Password */}
         <List.Item
           title="Change Password"
           description="Update your password securely"
-          left={(props) => <List.Icon {...props} icon="lock-reset" />}
-          onPress={() =>
-            Alert.alert("Change Password", "Password change screen coming soon")
-          }
+          left={(props) => (
+            <List.Icon {...props} icon="lock-reset" color={PRIMARY_COLOR} />
+          )}
+          right={(props) => <List.Icon {...props} icon="chevron-right" />}
+          onPress={() => handleNavigation("PasswordChange", "Change Password")}
+          style={styles.listItem}
         />
 
-        <List.Item
-          title="Logout"
-          description="Sign out of GarageGo"
-          left={(props) => <List.Icon {...props} icon="logout" />}
-          onPress={handleLogout}
-        />
-      </List.Section>
-
-      <Divider style={{ marginVertical: 10 }} />
-
-      {/* App Info */}
-      <List.Section>
-        <Text
-          variant="titleMedium"
-          style={[styles.sectionTitle, { color: colors.text }]}
-        >
-          About
-        </Text>
-        <List.Item
-          title="Version"
-          description="1.0.0"
-          left={(props) => <List.Icon {...props} icon="information-outline" />}
-        />
+        {/* Privacy Policy */}
         <List.Item
           title="Privacy Policy"
-          description="Read our privacy policy"
-          left={(props) => <List.Icon {...props} icon="shield-lock-outline" />}
-          onPress={() =>
-            Alert.alert("Privacy Policy", "Policy screen coming soon")
-          }
+          description="Read our terms and data usage"
+          left={(props) => (
+            <List.Icon
+              {...props}
+              icon="shield-lock-outline"
+              color={PRIMARY_COLOR}
+            />
+          )}
+          right={(props) => <List.Icon {...props} icon="chevron-right" />}
+          onPress={() => handleNavigation("PrivacyPolicy", "Privacy Policy")}
+          style={styles.listItem}
+        />
+
+        {/* Help & Support */}
+        <List.Item
+          title="Help & Support"
+          description="Get answers to common questions"
+          left={(props) => (
+            <List.Icon
+              {...props}
+              icon="help-circle-outline"
+              color={PRIMARY_COLOR}
+            />
+          )}
+          right={(props) => <List.Icon {...props} icon="chevron-right" />}
+          onPress={() => handleNavigation("Support", "Help & Support")}
+          style={styles.listItem}
         />
       </List.Section>
+
+      <Divider style={styles.sectionDivider} />
+
+      {/* --------------------- 4. Logout and Version --------------------- */}
+      <View style={styles.footerContainer}>
+        {/* Logout Button */}
+        <Button
+          mode="contained"
+          icon="logout"
+          onPress={handleLogout}
+          style={styles.logoutButton}
+          contentStyle={styles.logoutContent}
+          labelStyle={styles.logoutLabel}
+        >
+          Sign Out
+        </Button>
+
+        {/* Version Info */}
+        <View style={styles.versionContainer}>
+          <Text style={{ color: colors.onSurfaceVariant }}>
+            GarageGo App Version 1.0.0
+          </Text>
+        </View>
+      </View>
     </ScrollView>
   );
 };
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  profileContainer: { flexDirection: "row", alignItems: "center", padding: 20 },
-  profileText: { marginLeft: 15 },
-  sectionTitle: { marginLeft: 16, marginVertical: 8, fontWeight: "bold" },
+  contentContainer: { paddingBottom: 40 },
+
+  // Profile Card Styles
+  profileCard: {
+    margin: 20,
+    padding: 20,
+    borderRadius: 12,
+    elevation: 4,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  profileCardContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 15, // Space between info and button
+  },
+  profileText: {
+    marginLeft: 15,
+    flexShrink: 1, // Ensures text wraps if too long
+  },
+  userName: {
+    fontWeight: "bold",
+  },
+  manageAccountButton: {
+    borderColor: PRIMARY_COLOR,
+    borderRadius: 8,
+  },
+
+  // Section Styles
+  sectionDivider: { marginHorizontal: 20, marginVertical: 10 },
+  sectionTitleStyle: {
+    marginLeft: 20,
+    fontWeight: "bold",
+    fontSize: 14,
+    color: PRIMARY_COLOR, // Highlight section titles with brand color
+    marginTop: 10,
+  },
+  listItem: {
+    paddingHorizontal: 5,
+  },
+
+  // Footer Styles
+  footerContainer: {
+    paddingHorizontal: 20,
+    marginTop: 20,
+    alignItems: "center",
+  },
+  logoutButton: {
+    backgroundColor: PRIMARY_COLOR,
+    borderRadius: 8,
+    width: "100%",
+    marginVertical: 10,
+  },
+  logoutContent: {
+    paddingVertical: 5,
+  },
+  logoutLabel: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: "#FFFFFF",
+  },
+  versionContainer: {
+    marginTop: 10,
+    marginBottom: 20,
+  },
 });
 
 export default SettingsScreen;
