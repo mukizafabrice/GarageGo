@@ -12,6 +12,9 @@ import AdminSettings from "../screens/admin/AdminSettings";
 import AddGarage from "../screens/admin/AddGarageScreen";
 import EditGarage from "../screens/admin/EditGarageScreen";
 import UserScreen from "../screens/admin/UserScreen";
+import AdminProfile from "../screens/admin/AdminProfile";
+
+//garage screens
 import Traveller from "../screens/garage/Traveller";
 import GarageSettings from "../screens/garage/GarageSettings";
 import GarageHome from "../screens/garage/GarageHome";
@@ -182,6 +185,16 @@ const AppNavigator = () => {
             options={{
               headerShown: true,
               title: "Edit Garage",
+              headerStyle: { backgroundColor: "#4CAF50" },
+              headerTintColor: "#fff",
+            }}
+          />
+          <Stack.Screen
+            name="AdminProfile"
+            component={AdminProfile}
+            options={{
+              headerShown: true,
+              title: "Profile",
               headerStyle: { backgroundColor: "#4CAF50" },
               headerTintColor: "#fff",
             }}

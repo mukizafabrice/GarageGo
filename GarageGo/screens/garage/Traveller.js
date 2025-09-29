@@ -5,9 +5,8 @@ import {
   Text,
   ActivityIndicator,
   SafeAreaView,
-  Alert, // For action confirmation
+  Alert,
 } from "react-native";
-// Using react-native-paper for better components
 import { Button, Card, Title, Paragraph } from "react-native-paper";
 import MapView, { Marker, Polyline } from "react-native-maps";
 import * as Notifications from "expo-notifications";
@@ -32,13 +31,13 @@ const GarageMapScreen = () => {
     distance: null,
   });
   const [isLoading, setIsLoading] = useState(true);
-  const [jobStatus, setJobStatus] = useState("Monitoring"); // New state for job status
+  const [isRefreshing, setIsRefreshing] = useState(false); // State for manual refresh
+  const [jobStatus, setJobStatus] = useState("Monitoring");
 
   const mapRef = useRef(null);
   const { user } = useAuth();
   const userId = user?._id;
 
-  // Helper functions remain the same
   const formatDuration = (seconds) => {
     if (!seconds) return "...";
     const minutes = Math.round(seconds / 60);
@@ -51,7 +50,6 @@ const GarageMapScreen = () => {
     return `${km} km`;
   };
 
-  // REVISED ACTION: Driver Arrived (Job Control)
   const handleDriverArrived = () => {
     Alert.alert(
       "Confirm Arrival",
@@ -64,14 +62,12 @@ const GarageMapScreen = () => {
         {
           text: "Confirm & Complete",
           onPress: () => {
-            // This is the key action for the garage owner
             setJobStatus("Arrived & Complete");
             // TODO: Call backend service to update the job status
             Alert.alert(
               "Success",
               "Job status updated to 'Arrived & Complete'."
             );
-            // Optionally, clear route and driver location after completion
             setDriverLocation(null);
             setRouteCoordinates([]);
           },
@@ -81,7 +77,6 @@ const GarageMapScreen = () => {
     );
   };
 
-  // Function to fetch and decode the driving route
   const fetchRoute = async (origin, destination) => {
     if (!origin || !destination) return;
 
@@ -101,8 +96,8 @@ const GarageMapScreen = () => {
 
       setRouteCoordinates(decodedCoords);
       setRouteSummary({
-        duration: route.duration, // in seconds
-        distance: route.distance, // in meters
+        duration: route.duration,
+        distance: route.distance,
       });
     } catch (error) {
       console.error("Error fetching OSRM route:", error);
@@ -111,44 +106,70 @@ const GarageMapScreen = () => {
     }
   };
 
-  // 1. Fetch garage data
-  useEffect(() => {
-    // ... (Your existing fetchGarage logic) ...
-    const fetchGarage = async () => {
-      if (!userId) return setIsLoading(false);
-      try {
-        const response = await getGarageByUserId(userId);
-        const data = response.data;
+  // 1. Core function to fetch garage data and optionally reset driver state
+  const loadInitialData = async () => {
+    if (!userId) {
+      setIsLoading(false);
+      setIsRefreshing(false);
+      return;
+    }
 
-        if (data.latitude != null && data.longitude != null) {
-          const coords = {
-            latitude: parseFloat(data.latitude),
-            longitude: parseFloat(data.longitude),
-          };
-          setGarageLocation(coords);
-          setGarageInfo({
-            name: data.name || "My Garage",
-            address: data.address || "Unknown Address",
-          });
-          mapRef.current?.animateToRegion(
-            { ...coords, latitudeDelta: 0.05, longitudeDelta: 0.05 },
-            1000
-          );
-        }
-      } catch (err) {
-        console.error("Error fetching garage location:", err);
-      } finally {
-        setIsLoading(false);
+    try {
+      if (!garageLocation) {
+        setIsLoading(true);
+      } else {
+        setIsRefreshing(true); // Use refresh indicator for subsequent loads
       }
-    };
-    fetchGarage();
+
+      const response = await getGarageByUserId(userId);
+      const data = response.data;
+
+      if (data.latitude != null && data.longitude != null) {
+        const coords = {
+          latitude: parseFloat(data.latitude),
+          longitude: parseFloat(data.longitude),
+        };
+        setGarageLocation(coords);
+        setGarageInfo({
+          name: data.name || "My Garage",
+          address: data.address || "Unknown Address",
+        });
+        mapRef.current?.animateToRegion(
+          { ...coords, latitudeDelta: 0.05, longitudeDelta: 0.05 },
+          1000
+        );
+      }
+
+      // Manually reset tracking status if required after refresh
+      if (!driverLocation && jobStatus !== "Monitoring") {
+        setJobStatus("Monitoring");
+        setDriverLocation(null);
+        setRouteCoordinates([]);
+      }
+    } catch (err) {
+      console.error("Error fetching garage location:", err);
+    } finally {
+      setIsLoading(false);
+      setIsRefreshing(false); // Stop refresh indicator
+    }
+  };
+
+  // Initial Data Load
+  useEffect(() => {
+    loadInitialData();
   }, [userId]);
+
+  // Manual Refresh Handler
+  const handleRefresh = () => {
+    if (!isRefreshing && !isLoading) {
+      loadInitialData();
+    }
+  };
 
   // 2. Listen for driver coordinates AND fetch route
   useEffect(() => {
     const subscription = Notifications.addNotificationReceivedListener(
       (notif) => {
-        // Assume minimal data payload for location tracking only
         const { driverLat, driverLng, jobId } =
           notif.request.content.data || {};
 
@@ -158,7 +179,7 @@ const GarageMapScreen = () => {
             longitude: parseFloat(driverLng),
           };
           setDriverLocation(newDriverLocation);
-          setJobStatus("Driver En Route"); // Update job status on first receipt
+          setJobStatus("Driver En Route");
 
           if (garageLocation) {
             fetchRoute(garageLocation, newDriverLocation);
@@ -168,7 +189,6 @@ const GarageMapScreen = () => {
             mapRef.current.fitToCoordinates(
               [garageLocation, newDriverLocation],
               {
-                // Ensure map content is visible above/below the floating cards
                 edgePadding: { top: 150, right: 50, bottom: 200, left: 50 },
                 animated: true,
               }
@@ -197,7 +217,6 @@ const GarageMapScreen = () => {
     );
   }
 
-  // Get main status text based on state
   const statusText =
     jobStatus === "Arrived & Complete"
       ? "Job Complete"
@@ -242,7 +261,7 @@ const GarageMapScreen = () => {
           <Polyline
             coordinates={routeCoordinates}
             strokeWidth={5}
-            strokeColor={PRIMARY_COLOR} // Use brand color
+            strokeColor={PRIMARY_COLOR}
           />
         )}
       </MapView>
@@ -250,7 +269,25 @@ const GarageMapScreen = () => {
       {/* --------------------- Top Status Card --------------------- */}
       <Card style={styles.topCard}>
         <Card.Content style={styles.topCardContent}>
-          <Title style={styles.statusTitle}>{statusText}</Title>
+          <View style={styles.statusHeader}>
+            <Title style={styles.statusTitle}>{statusText}</Title>
+            <Button
+              mode="text"
+              onPress={handleRefresh}
+              loading={isRefreshing}
+              disabled={isRefreshing}
+              style={styles.refreshButton}
+            >
+              {!isRefreshing && (
+                <Ionicons
+                  name="refresh-circle-outline"
+                  size={24}
+                  color={PRIMARY_COLOR}
+                />
+              )}
+            </Button>
+          </View>
+
           {driverLocation && jobStatus !== "Arrived & Complete" && (
             <View style={styles.summaryRow}>
               <View style={styles.summaryItem}>
@@ -298,7 +335,7 @@ const GarageMapScreen = () => {
               onPress={handleDriverArrived}
               style={[styles.actionButton, { backgroundColor: PRIMARY_COLOR }]}
               labelStyle={styles.actionButtonLabel}
-              disabled={!driverLocation} // Disable if driver location hasn't been received yet
+              disabled={!driverLocation}
             >
               Driver Arrived / Complete Job
             </Button>
@@ -349,14 +386,22 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
   },
   topCardContent: {
-    alignItems: "center",
     paddingVertical: 15,
+  },
+  statusHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 10,
+    marginBottom: 10,
   },
   statusTitle: {
     fontSize: 18,
     fontWeight: "bold",
     color: "#333",
-    marginBottom: 10,
+  },
+  refreshButton: {
+    minWidth: 40,
   },
   waitingText: {
     fontSize: 14,
@@ -408,7 +453,7 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     elevation: 8,
-    backgroundColor: "#E8F5E9", // Light green background for completion status
+    backgroundColor: "#E8F5E9",
     paddingVertical: 15,
   },
   jobControlTitle: {

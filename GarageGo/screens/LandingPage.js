@@ -19,6 +19,10 @@ import { Ionicons } from "@expo/vector-icons";
 import { findNearestGarage } from "../services/garageService.js";
 import axios from "axios";
 import { decode as decodePolyline } from "@mapbox/polyline";
+// -----------------------------------------------------------------
+// NEW: Import for Notifications
+import * as Notifications from "expo-notifications";
+// -----------------------------------------------------------------
 
 // Define Constants for Styling
 const { width, height } = Dimensions.get("window");
@@ -27,6 +31,18 @@ const LATITUDE_DELTA = 0.05;
 const LONGITUDE_DELTA = LATITUDE_DELTA * ASPECT_RATIO;
 const PRIMARY_COLOR = "#4CAF50"; // Green brand color
 const SECONDARY_TEXT_COLOR = "#757575";
+const DANGER_COLOR = "#D32F2F"; // Red for secondary actions
+
+// -----------------------------------------------------------------
+// Configure Notification Handler to show alerts in the foreground
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: false,
+    shouldSetBadge: false,
+  }),
+});
+// -----------------------------------------------------------------
 
 // Custom Header Component - Cleaned up
 const Header = ({ onProfilePress }) => (
@@ -45,23 +61,239 @@ const LandingPage = () => {
   const [nearestGarage, setNearestGarage] = useState(null);
   const [routeCoordinates, setRouteCoordinates] = useState([]);
   const [error, setError] = useState(null);
-  const [loading, setLoading] = useState(true); // Start loading true to fetch location
-  const [findingGarage, setFindingGarage] = useState(false);
+  const [loading, setLoading] = useState(true); // Initial load (for location)
+  const [findingGarage, setFindingGarage] = useState(false); // Button loading state
+  const [isRefreshing, setIsRefreshing] = useState(false); // Floating refresh state
 
   const mapRef = useRef(null);
   const navigation = useNavigation();
 
-  // ------------------ Location Fetch Effect ------------------
+  const handleProfilePress = () => {
+    navigation.navigate("Login");
+  };
+
+  const handleCallGarage = () => {
+    if (nearestGarage?.phone) {
+      Linking.openURL(`tel:${nearestGarage.phone}`);
+    } else {
+      Alert.alert("Error", "Garage phone number not available.");
+    }
+  };
+
+  // Function to clear the search results and return to the default state
+  const handleNewSearch = () => {
+    setNearestGarage(null);
+    setRouteCoordinates([]);
+
+    // Animate map back to user's location for a clean start
+    if (mapRef.current && userLocation) {
+      mapRef.current.animateToRegion(
+        {
+          latitude: userLocation.latitude,
+          longitude: userLocation.longitude,
+          latitudeDelta: LATITUDE_DELTA,
+          longitudeDelta: LONGITUDE_DELTA,
+        },
+        500
+      );
+    }
+  };
+
+  // -----------------------------------------------------------------
+  // Notification Listeners (runs once on component mount)
   useEffect(() => {
+    // Listener for notifications received while the app is in the foreground
+    const receivedListener = Notifications.addNotificationReceivedListener(
+      (notification) => {
+        // --- CRITICAL FILTER ADDED HERE ---
+        const data = notification.request.content.data || {};
+        const { driverLat, driverLng } = data;
+
+        // If driver location data exists, this notification is for the garage/driver tracking.
+        // The consumer app MUST ignore it to stop unwanted notifications/processing.
+        if (driverLat || driverLng) {
+          console.log(
+            "Consumer Listener: IGNORING driver location update (intended for Garage App)."
+          );
+          return; // EXIT immediately
+        }
+        // --- END CRITICAL FILTER ---
+
+        console.log(
+          "[Notification Received] App is in the foreground:",
+          notification.request.content.title
+        );
+        // Optional: Handle the incoming notification data if needed, e.g., update state
+      }
+    );
+
+    // Listener for when a user taps on the notification (app is backgrounded/closed)
+    const responseListener =
+      Notifications.addNotificationResponseReceivedListener((response) => {
+        const garageName =
+          response.notification.request.content.data.garageName;
+        console.log(
+          "[Notification Tapped] User opened app via notification for:",
+          garageName
+        );
+        // You could navigate to a detailed screen here using the garageName data
+      });
+
+    // Clean up listeners on component unmount
+    return () => {
+      Notifications.removeNotificationSubscription(receivedListener);
+      Notifications.removeNotificationSubscription(responseListener);
+    };
+  }, []);
+  // -----------------------------------------------------------------
+
+  // -----------------------------------------------------------------
+  // Function to schedule a notification
+  const scheduleGarageFoundNotification = async (garageName) => {
+    try {
+      // 1. Request permissions (if not already granted)
+      const { status: existingStatus } =
+        await Notifications.getPermissionsAsync();
+      let finalStatus = existingStatus;
+      if (existingStatus !== "granted") {
+        const { status } = await Notifications.requestPermissionsAsync();
+        finalStatus = status;
+      }
+      if (finalStatus !== "granted") {
+        console.log("Notification permission denied.");
+        return;
+      }
+
+      // 2. Schedule the notification
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title: "✅ Nearest Garage Found!",
+          body: `We located: ${garageName}. Tap to view details.`,
+          data: { garageName: garageName },
+          sound: true, // Enable sound
+        },
+        trigger: { seconds: 1 }, // Show almost immediately
+      });
+
+      // ADDED LOG: Confirm scheduling was requested
+      console.log(
+        `[Notification] Successfully requested scheduling for: ${garageName}`
+      );
+    } catch (e) {
+      console.error("Error scheduling notification:", e);
+    }
+  };
+  // -----------------------------------------------------------------
+
+  // Helper function to fetch route and adjust map view
+  const fetchRouteAndAdjustMap = async (userLoc, garage) => {
+    // OSRM requires LON, LAT order
+    const osrmUrl = `http://router.project-osrm.org/route/v1/driving/${userLoc.longitude},${userLoc.latitude};${garage.longitude},${garage.latitude}?overview=full&geometries=polyline`;
+
+    try {
+      const routeResponse = await axios.get(osrmUrl);
+      const polyline = routeResponse.data.routes[0].geometry;
+      const decodedCoords = decodePolyline(polyline).map((point) => ({
+        latitude: point[0],
+        longitude: point[1],
+      }));
+
+      setRouteCoordinates(decodedCoords);
+
+      // Adjust map view to fit both user and garage markers
+      if (mapRef.current) {
+        mapRef.current.fitToCoordinates(
+          [
+            { latitude: userLoc.latitude, longitude: userLoc.longitude },
+            { latitude: garage.latitude, longitude: garage.longitude },
+          ],
+          {
+            edgePadding: { top: 150, right: 50, bottom: 200, left: 50 },
+            animated: true,
+          }
+        );
+      }
+    } catch (routeError) {
+      console.error("Error fetching OSRM route:", routeError);
+      Alert.alert("Route Error", "Could not calculate driving route.");
+      setRouteCoordinates([]);
+    }
+  };
+
+  // ------------------ Unified Location Fetch and Search Logic ------------------
+  const fetchLocationAndSearch = async (isInitialLoad = false) => {
+    // Set appropriate loading state
+    if (isInitialLoad) {
+      setLoading(true);
+    } else {
+      setIsRefreshing(true);
+      setFindingGarage(true);
+      // Clear previous results immediately on refresh
+      setNearestGarage(null);
+      setRouteCoordinates([]);
+    }
+    setError(null);
+
+    try {
+      // 1. Get User Location (always re-fetch on search/refresh)
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== "granted") {
+        setError("Location access denied. Please enable location services.");
+        return;
+      }
+
+      const loc = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.High,
+      });
+      const currentLocation = loc.coords;
+      setUserLocation(currentLocation);
+
+      // 2. Find Nearest Garage (Only search if not just an initial location fetch)
+      if (isInitialLoad && !findingGarage && !isRefreshing) {
+        // Skip search on initial load unless explicitly triggered
+        return;
+      }
+
+      const response = await findNearestGarage(
+        currentLocation.latitude,
+        currentLocation.longitude
+      );
+
+      if (response.success && response.nearestGarage) {
+        const garage = response.nearestGarage;
+        setNearestGarage(garage);
+
+        // Trigger the notification
+        scheduleGarageFoundNotification(garage.name);
+
+        // 3. Fetch OSRM Route and adjust map
+        await fetchRouteAndAdjustMap(currentLocation, garage);
+      } else {
+        Alert.alert(
+          "No Garages Found",
+          response.message || "Failed to find nearest garage in your area."
+        );
+      }
+    } catch (err) {
+      console.error("Error during operation:", err);
+      setError("Error connecting to the service or fetching location.");
+    } finally {
+      setLoading(false);
+      setIsRefreshing(false);
+      setFindingGarage(false);
+    }
+  };
+
+  // ------------------ Initial Load Effect ------------------
+  useEffect(() => {
+    // Only fetch location initially, don't search yet
     (async () => {
       try {
         const { status } = await Location.requestForegroundPermissionsAsync();
         if (status !== "granted") {
           setError("Location access denied. Map cannot show current position.");
-          setLoading(false);
           return;
         }
-
         const loc = await Location.getCurrentPositionAsync({
           accuracy: Location.Accuracy.High,
         });
@@ -75,21 +307,8 @@ const LandingPage = () => {
     })();
   }, []);
 
-  const handleProfilePress = () => {
-    // Navigate to Login or Profile screen
-    navigation.navigate("Login");
-  };
-
-  const handleCallGarage = () => {
-    if (nearestGarage?.phone) {
-      Linking.openURL(`tel:${nearestGarage.phone}`);
-    } else {
-      Alert.alert("Error", "Garage phone number not available.");
-    }
-  };
-
-  // ------------------ Main Action Handler ------------------
-  const handleFindPress = async () => {
+  // ------------------ Main Action Handler (now triggers search) ------------------
+  const handleFindPress = () => {
     if (!userLocation) {
       Alert.alert(
         "Location Not Ready",
@@ -97,67 +316,8 @@ const LandingPage = () => {
       );
       return;
     }
-
-    setFindingGarage(true);
-    setRouteCoordinates([]);
-    setNearestGarage(null);
-
-    try {
-      // 1. Find Nearest Garage
-      const response = await findNearestGarage(
-        userLocation.latitude,
-        userLocation.longitude
-      );
-
-      if (response.success && response.nearestGarage) {
-        const garage = response.nearestGarage;
-        setNearestGarage(garage);
-
-        // 2. Fetch OSRM Route
-        // OSRM requires LON, LAT order
-        const osrmUrl = `http://router.project-osrm.org/route/v1/driving/${userLocation.longitude},${userLocation.latitude};${garage.longitude},${garage.latitude}?overview=full&geometries=polyline`;
-
-        const routeResponse = await axios.get(osrmUrl);
-        const polyline = routeResponse.data.routes[0].geometry;
-        const decodedCoords = decodePolyline(polyline).map((point) => ({
-          latitude: point[0],
-          longitude: point[1],
-        }));
-
-        setRouteCoordinates(decodedCoords);
-
-        // 3. Adjust map view
-        if (mapRef.current) {
-          mapRef.current.fitToCoordinates(
-            [
-              {
-                latitude: userLocation.latitude,
-                longitude: userLocation.longitude,
-              },
-              { latitude: garage.latitude, longitude: garage.longitude },
-              ...decodedCoords,
-            ],
-            {
-              edgePadding: { top: 150, right: 50, bottom: 200, left: 50 }, // Adjusted padding for UI cards
-              animated: true,
-            }
-          );
-        }
-      } else {
-        Alert.alert(
-          "Error",
-          response.message || "Failed to find nearest garage."
-        );
-      }
-    } catch (err) {
-      console.error("Error fetching data:", err);
-      Alert.alert(
-        "Error",
-        "Could not connect to the service. Please try again."
-      );
-    } finally {
-      setFindingGarage(false);
-    }
+    // Start a full search cycle
+    fetchLocationAndSearch(false);
   };
 
   if (loading) {
@@ -217,8 +377,22 @@ const LandingPage = () => {
           <Text style={styles.errorText}>{error}</Text>
         )}
 
+        {/* --------------------- REFRESH BUTTON (Floating) --------------------- */}
+        {/* This button serves as the universal re-search/refresh action */}
+        <TouchableOpacity
+          style={styles.refreshFloatingButton}
+          onPress={() => fetchLocationAndSearch(false)}
+          disabled={isRefreshing}
+        >
+          {isRefreshing ? (
+            <ActivityIndicator size="small" color="#FFFFFF" />
+          ) : (
+            <Ionicons name="refresh" size={28} color="#FFFFFF" />
+          )}
+        </TouchableOpacity>
+
         {/* --------------------- TOP ACTION CARD --------------------- */}
-        {!nearestGarage && ( // Show only before a garage is found
+        {!nearestGarage && ( // Show only before a garage is successfully found
           <Card style={styles.actionCard}>
             <Card.Content>
               <Title style={styles.actionTitle}>Need a Fix?</Title>
@@ -275,15 +449,29 @@ const LandingPage = () => {
                 </View>
               </View>
 
-              <Button
-                mode="contained"
-                icon="phone"
-                onPress={handleCallGarage}
-                style={styles.callButton}
-                labelStyle={styles.callButtonLabel}
-              >
-                Call Now
-              </Button>
+              <View style={styles.infoActions}>
+                {/* NEW SEARCH BUTTON */}
+                <Button
+                  mode="outlined"
+                  icon="chevron-left"
+                  onPress={handleNewSearch}
+                  style={styles.newSearchButton}
+                  labelStyle={styles.newSearchButtonLabel}
+                >
+                  New Search
+                </Button>
+
+                {/* CALL BUTTON */}
+                <Button
+                  mode="contained"
+                  icon="phone"
+                  onPress={handleCallGarage}
+                  style={styles.callButton}
+                  labelStyle={styles.callButtonLabel}
+                >
+                  Call Now
+                </Button>
+              </View>
             </Card.Content>
           </Card>
         )}
@@ -318,8 +506,24 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
 
+  // Floating Refresh Button (Universal refresh/re-search)
+  refreshFloatingButton: {
+    position: "absolute",
+    top: 100, // Below the header
+    right: 20,
+    backgroundColor: PRIMARY_COLOR,
+    borderRadius: 50,
+    padding: 12, // Increased padding for a slightly larger touch target
+    zIndex: 15,
+    elevation: 8,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 5,
+  },
+
   // ------------------ Floating Card Styles ------------------
-  // Action Card (Before Search)
+  // Action Card (Before Search or if Search failed)
   actionCard: {
     position: "absolute",
     top: height * 0.15, // Move it down a bit from the top
@@ -396,9 +600,27 @@ const styles = StyleSheet.create({
     color: SECONDARY_TEXT_COLOR,
     marginLeft: 5,
   },
-  callButton: {
+  infoActions: {
+    flexDirection: "row",
+    justifyContent: "space-between",
     marginTop: 10,
-    backgroundColor: "#007AFF", // Using a distinct blue for 'Call Now'
+  },
+  newSearchButton: {
+    flex: 1,
+    marginRight: 10,
+    borderColor: DANGER_COLOR,
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingVertical: 5,
+  },
+  newSearchButtonLabel: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: DANGER_COLOR,
+  },
+  callButton: {
+    flex: 1,
+    backgroundColor: "#007AFF",
     paddingVertical: 5,
     borderRadius: 8,
   },
@@ -414,11 +636,11 @@ const headerStyles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     paddingHorizontal: 20,
-    paddingVertical: 10, // Adjusted padding
+    paddingVertical: 20,
     backgroundColor: PRIMARY_COLOR,
-    zIndex: 20, // Ensure header is above everything
+    zIndex: 20,
   },
   logoContainer: { flexDirection: "row" },
-  logoText: { fontSize: 26, fontWeight: "bold", color: "#FFFFFF" },
-  profileIcon: { padding: 5 },  
+  logoText: { fontSize: 26, fontWeight: "bold", color: "#FFFFFF", top: 10 },
+  profileIcon: { padding: 5, top: 10 },
 });

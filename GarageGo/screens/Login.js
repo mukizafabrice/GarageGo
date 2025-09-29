@@ -46,9 +46,14 @@ const Login = () => {
   const getPasswordIcon = () => (showPassword ? "🙈" : "👁️");
 
   return (
+    // <KeyboardAvoidingView
+    //   style={{ flex: 1, backgroundColor: "#E8F5E9" }}
+    //   behavior={Platform.OS === "ios" ? "padding" : undefined}
+    // >
     <KeyboardAvoidingView
       style={{ flex: 1, backgroundColor: "#E8F5E9" }}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      keyboardVerticalOffset={0}
     >
       <ScrollView contentContainerStyle={styles.scrollContainer}>
         <View style={styles.container}>
