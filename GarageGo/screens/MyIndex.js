@@ -297,7 +297,7 @@ const UserDetailForm = ({ data, navigation }) => {
       >
         <View style={styles.card}>
           {/* Header */}
-          <Text style={styles.headerText}>Welcome to **GarageGo**!</Text>
+          <Text style={styles.headerText}>Welcome to GarageGo!</Text>
           <Text style={styles.subtitleText}>
             This is a one-time setup. Let's save your details securely.
           </Text>
@@ -329,7 +329,7 @@ const UserDetailForm = ({ data, navigation }) => {
               icon={Phone}
               value={phoneNumber}
               onChangeText={setPhoneNumber}
-              placeholder="e.g., +1 555-123-4567"
+              placeholder="e.g., +250781111111"
               type="tel"
               disabled={!isEditing}
             />

@@ -32,17 +32,34 @@ export const getNearbyGarages = async (lat, lng, radius = 5000) => {
   return response.data;
 };
 
-// garageservice.js
-
-export const findNearestGarage = async (latitude, longitude) => {
+/**
+ * Finds the nearest garage to the driver's location and notifies them.
+ * This service function now includes the driver's identification details
+ * required by the backend controller for notification.
+ *
+ * @param {number} latitude - Driver's current latitude.
+ * @param {number} longitude - Driver's current longitude.
+ * @param {string} name - Driver's name (from AsyncStorage).
+ * @param {string} phoneNumber - Driver's phone number (from AsyncStorage).
+ * @returns {Promise<object>} The response data from the server.
+ */
+export const findNearestGarage = async (
+  latitude,
+  longitude,
+  name,
+  phoneNumber
+) => {
   try {
     const response = await axiosInstance.post("/garages/nearest", {
       latitude,
       longitude,
+      name, // NEW: Included driver name
+      phoneNumber, // NEW: Included driver phone number
     });
     return response.data;
   } catch (error) {
     console.error("Error finding nearest garage:", error);
+    // Re-throw the error so the component can handle it
     throw error;
   }
 };

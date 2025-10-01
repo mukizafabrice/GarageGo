@@ -116,14 +116,23 @@ export const getGarageByUserId = async (req, res) => {
  */
 export const findNearestGarage = async (req, res) => {
   try {
-    const { latitude, longitude } = req.body;
+    // 1. ACCEPT NEW DATA: Include name and phoneNumber from the driver's client request
+    const { latitude, longitude, name, phoneNumber } = req.body;
+
+    // Basic validation for all required fields
+    if (!latitude || !longitude || !name || !phoneNumber) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Missing required fields (latitude, longitude, name, or phoneNumber).",
+      });
+    }
 
     console.log(
-      `✅ Received request from driver at Lat: ${latitude}, Lng: ${longitude}`
+      `✅ Received request from driver: ${name} (${phoneNumber}) at Lat: ${latitude}, Lng: ${longitude}`
     );
 
     const allGarages = await Garage.find();
-
     console.log(`🔎 Total garages found in database: ${allGarages.length}`);
 
     if (allGarages.length === 0) {
@@ -136,6 +145,7 @@ export const findNearestGarage = async (req, res) => {
     let nearestGarage = null;
     let minDistance = Infinity;
 
+    // Find the nearest garage
     for (const garage of allGarages) {
       const distance = calculateDistance(
         latitude,
@@ -149,34 +159,34 @@ export const findNearestGarage = async (req, res) => {
       }
     }
 
-    if (!nearestGarage || !nearestGarage.fcmToken) {
-      console.log("No nearest garage with a valid FCM token was found.");
-      return res.json({
-        success: false,
-        message: "No nearest garage with a valid FCM token was found.",
-      });
-    }
-
-    // Check that the nearest garage's token is a valid Expo push token
-    if (!Expo.isExpoPushToken(nearestGarage.fcmToken)) {
-      console.error(
-        `❌ Push token ${nearestGarage.fcmToken} is not a valid Expo push token.`
+    if (
+      !nearestGarage ||
+      !nearestGarage.fcmToken ||
+      !Expo.isExpoPushToken(nearestGarage.fcmToken)
+    ) {
+      const tokenStatus = nearestGarage?.fcmToken
+        ? "Invalid Token"
+        : "No Token";
+      console.log(
+        `No nearest garage with a valid FCM token was found. Status: ${tokenStatus}`
       );
       return res.json({
         success: false,
-        message: "Failed to send notification: Invalid push token.",
+        message: `No nearest garage with a valid push token was found.`,
       });
     }
 
     console.log(`✅ Found nearest garage: ${nearestGarage.name}`);
 
-    // Create the message object in the format required by expo-server-sdk
+    // 2. USE NEW DATA IN NOTIFICATION: Create the message object
     const message = {
       to: nearestGarage.fcmToken,
       sound: "default",
-      title: "🚨 New Assistance Request",
-      body: "A driver needs your help! Tap for details.",
+      title: `🚨 NEW REQUEST: ${name}`,
+      body: `Driver needs help! Contact: ${phoneNumber}.Tap for location details.`,
       data: {
+        driverName: name,
+        driverPhoneNumber: phoneNumber,
         driverLat: latitude.toString(),
         driverLng: longitude.toString(),
       },
@@ -189,9 +199,19 @@ export const findNearestGarage = async (req, res) => {
         `✅ Notification sent to nearest garage: ${nearestGarage.name}`,
         ticketChunk
       );
+
+      // 3. CORRECTED RESPONSE: Include coordinates and other required details
       res.json({
         success: true,
-        nearestGarage: nearestGarage,
+        nearestGarage: {
+          name: nearestGarage.name,
+          id: nearestGarage.id,
+          // 🛠️ FIX APPLIED HERE: Sending coordinates back to the client
+          latitude: nearestGarage.latitude,
+          longitude: nearestGarage.longitude,
+          address: nearestGarage.address,
+          phone: nearestGarage.phone,
+        },
         message: "Nearest garage found and notified successfully.",
       });
     } catch (error) {
