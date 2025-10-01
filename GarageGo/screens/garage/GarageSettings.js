@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   StyleSheet,
@@ -19,24 +19,63 @@ import {
 import { useAuth } from "../../context/AuthContext";
 import { Ionicons } from "@expo/vector-icons"; // For extra icons
 
+// Assuming the notification utilities are in this path based on project structure
+// NOTE: Only importing requestUserPermission for the switch interaction.
+import { requestUserPermission } from "../../services/notificationService";
+
 // Define Brand Color
 const PRIMARY_COLOR = "#4CAF50";
 
 const SettingsScreen = ({ navigation }) => {
+  // NOTE: Assuming useTheme is imported from react-native-paper
   const { colors } = useTheme();
-  const { user, logout } = useAuth(); // user info and logout function
+  // NOTE: Assuming useAuth is defined in the correct path and provides user/logout
+  const { user, logout } = useAuth();
 
   // State
   // NOTE: In a real app, these states (isDarkMode) would typically be managed by a global theme context
   const [isDarkMode, setIsDarkMode] = useState(false);
-  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+  // Changed initial state to false to enforce an opt-in flow for push notifications
+  const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [language, setLanguage] = useState("English");
 
   const toggleDarkMode = () => setIsDarkMode(!isDarkMode);
-  const toggleNotifications = () =>
-    setNotificationsEnabled(!notificationsEnabled);
+
+  const toggleNotifications = async () => {
+    // If user is enabling notifications
+    if (!notificationsEnabled) {
+      // Attempt to request permission and get Expo Push Token
+      const token = await requestUserPermission();
+
+      if (token) {
+        // Permission granted, update local state
+        setNotificationsEnabled(true);
+        // TODO: Implement logic here to send the `token` to your backend server
+        // linked to the current `user` for push notification targeting.
+        Alert.alert("Success", "Notifications enabled!");
+      } else {
+        // Permission denied, reset switch state and inform user
+        Alert.alert(
+          "Permission Required",
+          "Notifications permission was not granted. Please enable it in your device settings to receive alerts."
+        );
+        // Ensure the switch is off if permission failed
+        setNotificationsEnabled(false);
+      }
+    } else {
+      // If user is disabling notifications (just update local state)
+      setNotificationsEnabled(false);
+      // NOTE: If you have a backend, you should remove the token associated with this device/user here
+      // to prevent sending unwanted notifications.
+      Alert.alert(
+        "Disabled",
+        "Notifications have been disabled for this device."
+      );
+    }
+  };
 
   const handleLogout = () => {
+    // NOTE: Alert is a React Native component
     Alert.alert("Logout", "Are you sure you want to sign out of GarageGo?", [
       { text: "Cancel", style: "cancel" },
       { text: "Sign Out", style: "destructive", onPress: logout },
@@ -59,7 +98,7 @@ const SettingsScreen = ({ navigation }) => {
           {/* Avatar Area */}
           <Avatar.Icon
             size={70}
-            icon="car-wrench" // Use a relevant icon since avatar source is commented
+            icon="car-wrench" // Use a relevant icon
             style={{ backgroundColor: PRIMARY_COLOR }}
             color="#FFFFFF"
           />
@@ -113,7 +152,8 @@ const SettingsScreen = ({ navigation }) => {
             <Switch
               value={isDarkMode}
               onValueChange={toggleDarkMode}
-              color={PRIMARY_COLOR}
+              trackColor={{ false: colors.backdrop, true: PRIMARY_COLOR }}
+              thumbColor={colors.surface}
             />
           )}
           style={styles.listItem}
@@ -134,7 +174,8 @@ const SettingsScreen = ({ navigation }) => {
             <Switch
               value={notificationsEnabled}
               onValueChange={toggleNotifications}
-              color={PRIMARY_COLOR}
+              trackColor={{ false: colors.backdrop, true: PRIMARY_COLOR }}
+              thumbColor={colors.surface}
             />
           )}
           style={styles.listItem}
@@ -203,6 +244,22 @@ const SettingsScreen = ({ navigation }) => {
           onPress={() => handleNavigation("Support", "Help & Support")}
           style={styles.listItem}
         />
+
+        {/* Manage Users Link */}
+        <List.Item
+          title="Manage Users"
+          description="Add or manage garage users (Owners/Staff)"
+          left={(props) => (
+            <List.Icon
+              {...props}
+              icon="account-multiple-outline" // Icon for multiple users
+              color={PRIMARY_COLOR}
+            />
+          )}
+          right={(props) => <List.Icon {...props} icon="chevron-right" />}
+          onPress={() => navigation.navigate("UserManagement")}
+          style={styles.listItem}
+        />
       </List.Section>
 
       <Divider style={styles.sectionDivider} />
@@ -214,7 +271,7 @@ const SettingsScreen = ({ navigation }) => {
           mode="contained"
           icon="logout"
           onPress={handleLogout}
-          style={styles.logoutButton}
+          style={[styles.logoutButton, { backgroundColor: PRIMARY_COLOR }]}
           contentStyle={styles.logoutContent}
           labelStyle={styles.logoutLabel}
         >
@@ -284,7 +341,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   logoutButton: {
-    backgroundColor: PRIMARY_COLOR,
+    // Note: backgroundColor is set inline in the component to use the variable
     borderRadius: 8,
     width: "100%",
     marginVertical: 10,

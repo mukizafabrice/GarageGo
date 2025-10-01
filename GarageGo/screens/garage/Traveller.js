@@ -18,8 +18,17 @@ import { Ionicons } from "@expo/vector-icons";
 
 // Define Constants
 const OSRM_ROUTING_URL = "http://router.project-osrm.org/route/v1/driving/";
-const PRIMARY_COLOR = "#4CAF50"; // Your brand color
+const PRIMARY_COLOR = "#4CAF50"; // Brand color (Green)
 const SECONDARY_TEXT_COLOR = "#757575";
+
+// Configure Notification Handler to allow showing alerts in the foreground
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+  }),
+});
 
 const GarageMapScreen = () => {
   const [garageLocation, setGarageLocation] = useState(null);
@@ -31,13 +40,15 @@ const GarageMapScreen = () => {
     distance: null,
   });
   const [isLoading, setIsLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false); // State for manual refresh
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [jobStatus, setJobStatus] = useState("Monitoring");
 
   const mapRef = useRef(null);
+  // Assuming useAuth provides a user object with an identifier
   const { user } = useAuth();
   const userId = user?._id;
 
+  // Helper functions for formatting route data
   const formatDuration = (seconds) => {
     if (!seconds) return "...";
     const minutes = Math.round(seconds / 60);
@@ -50,6 +61,7 @@ const GarageMapScreen = () => {
     return `${km} km`;
   };
 
+  // Handler for marking the job as complete
   const handleDriverArrived = () => {
     Alert.alert(
       "Confirm Arrival",
@@ -63,11 +75,12 @@ const GarageMapScreen = () => {
           text: "Confirm & Complete",
           onPress: () => {
             setJobStatus("Arrived & Complete");
-            // TODO: Call backend service to update the job status
+            // TODO: Call backend service to update the persistent job status
             Alert.alert(
               "Success",
               "Job status updated to 'Arrived & Complete'."
             );
+            // Clear markers/route to reflect completion
             setDriverLocation(null);
             setRouteCoordinates([]);
           },
@@ -77,9 +90,11 @@ const GarageMapScreen = () => {
     );
   };
 
-  const fetchRoute = async (origin, destination) => {
+  // Function to fetch the route coordinates and summary from OSRM
+  const fetchRoute = async (destination, origin) => {
     if (!origin || !destination) return;
 
+    // OSRM expects coordinates in LON,LAT;LON,LAT format
     const osrmUrl =
       `${OSRM_ROUTING_URL}${origin.longitude},${origin.latitude};${destination.longitude},${destination.latitude}` +
       `?overview=full&geometries=polyline`;
@@ -99,6 +114,14 @@ const GarageMapScreen = () => {
         duration: route.duration,
         distance: route.distance,
       });
+
+      // Fit map to show both markers and the route
+      if (mapRef.current) {
+        mapRef.current.fitToCoordinates([destination, origin], {
+          edgePadding: { top: 150, right: 50, bottom: 200, left: 50 },
+          animated: true,
+        });
+      }
     } catch (error) {
       console.error("Error fetching OSRM route:", error);
       setRouteCoordinates([]);
@@ -106,7 +129,7 @@ const GarageMapScreen = () => {
     }
   };
 
-  // 1. Core function to fetch garage data and optionally reset driver state
+  // 1. Core function to fetch garage data (initial load or manual refresh)
   const loadInitialData = async () => {
     if (!userId) {
       setIsLoading(false);
@@ -122,6 +145,12 @@ const GarageMapScreen = () => {
       }
 
       const response = await getGarageByUserId(userId);
+
+      if (!response || !response.data) {
+        console.error("Failed to retrieve valid garage data.");
+        return;
+      }
+
       const data = response.data;
 
       if (data.latitude != null && data.longitude != null) {
@@ -134,6 +163,7 @@ const GarageMapScreen = () => {
           name: data.name || "My Garage",
           address: data.address || "Unknown Address",
         });
+        // Animate to garage location on initial load
         mapRef.current?.animateToRegion(
           { ...coords, latitudeDelta: 0.05, longitudeDelta: 0.05 },
           1000
@@ -150,11 +180,11 @@ const GarageMapScreen = () => {
       console.error("Error fetching garage location:", err);
     } finally {
       setIsLoading(false);
-      setIsRefreshing(false); // Stop refresh indicator
+      setIsRefreshing(false);
     }
   };
 
-  // Initial Data Load
+  // Initial Data Load Effect (runs once on mount)
   useEffect(() => {
     loadInitialData();
   }, [userId]);
@@ -166,13 +196,15 @@ const GarageMapScreen = () => {
     }
   };
 
-  // 2. Listen for driver coordinates AND fetch route
+  // 2. Notification Listener for Driver Location Updates
   useEffect(() => {
+    // This listener will capture location pings sent as notifications
     const subscription = Notifications.addNotificationReceivedListener(
       (notif) => {
         const { driverLat, driverLng, jobId } =
           notif.request.content.data || {};
 
+        // Only process if we receive coordinates and the job isn't complete
         if (driverLat && driverLng && jobStatus !== "Arrived & Complete") {
           const newDriverLocation = {
             latitude: parseFloat(driverLat),
@@ -181,33 +213,27 @@ const GarageMapScreen = () => {
           setDriverLocation(newDriverLocation);
           setJobStatus("Driver En Route");
 
+          // Destination is the GarageLocation, Origin is the DriverLocation
           if (garageLocation) {
             fetchRoute(garageLocation, newDriverLocation);
-          }
-
-          if (garageLocation && mapRef.current) {
-            mapRef.current.fitToCoordinates(
-              [garageLocation, newDriverLocation],
-              {
-                edgePadding: { top: 150, right: 50, bottom: 200, left: 50 },
-                animated: true,
-              }
-            );
           }
         }
       }
     );
 
+    // ✅ CLEANUP FIX: Using the correct .remove() method on the subscription object.
+    // This ensures no TypeError when the component unmounts.
     return () => subscription.remove();
-  }, [garageLocation, jobStatus]);
+  }, [garageLocation, jobStatus]); // Dependencies ensure fresh state is available inside the listener
 
-  // Re-fetch route if locations load async
+  // Re-fetch route if locations load asynchronously (e.g., initial state population)
   useEffect(() => {
     if (garageLocation && driverLocation) {
       fetchRoute(garageLocation, driverLocation);
     }
   }, [garageLocation, driverLocation]);
 
+  // Render loading screen while fetching initial garage location
   if (isLoading) {
     return (
       <View style={styles.loadingContainer}>
@@ -224,18 +250,17 @@ const GarageMapScreen = () => {
       ? "Driver En Route"
       : "Awaiting First Location Update";
 
+  // Ensure the map can render if garageLocation is null (e.g., if garage data is missing)
+  const initialRegion = {
+    latitude: garageLocation?.latitude || 37.78825, // Fallback to SF if no garage
+    longitude: garageLocation?.longitude || -122.4324,
+    latitudeDelta: 0.05,
+    longitudeDelta: 0.05,
+  };
+
   return (
     <SafeAreaView style={styles.container}>
-      <MapView
-        ref={mapRef}
-        style={styles.map}
-        initialRegion={{
-          latitude: garageLocation?.latitude || 0,
-          longitude: garageLocation?.longitude || 0,
-          latitudeDelta: 0.05,
-          longitudeDelta: 0.05,
-        }}
-      >
+      <MapView ref={mapRef} style={styles.map} initialRegion={initialRegion}>
         {/* Garage Marker (Destination) */}
         {garageLocation && (
           <Marker
@@ -335,6 +360,7 @@ const GarageMapScreen = () => {
               onPress={handleDriverArrived}
               style={[styles.actionButton, { backgroundColor: PRIMARY_COLOR }]}
               labelStyle={styles.actionButtonLabel}
+              // Only enable button if we have a driver location (they started the job)
               disabled={!driverLocation}
             >
               Driver Arrived / Complete Job
@@ -453,7 +479,7 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     elevation: 8,
-    backgroundColor: "#E8F5E9",
+    backgroundColor: "#E8F5E9", // Light green background
     paddingVertical: 15,
   },
   jobControlTitle: {

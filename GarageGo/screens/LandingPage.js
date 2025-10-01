@@ -38,7 +38,7 @@ const DANGER_COLOR = "#D32F2F"; // Red for secondary actions
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowAlert: true,
-    shouldPlaySound: false,
+    shouldPlaySound: true,
     shouldSetBadge: false,
   }),
 });
@@ -141,8 +141,14 @@ const LandingPage = () => {
 
     // Clean up listeners on component unmount
     return () => {
-      Notifications.removeNotificationSubscription(receivedListener);
-      Notifications.removeNotificationSubscription(responseListener);
+      // ✅ FIX APPLIED HERE: Using the correct .remove() method on the subscription objects.
+      if (receivedListener) {
+        receivedListener.remove();
+      }
+      if (responseListener) {
+        responseListener.remove();
+      }
+      // The previous line: Notifications.removeNotificationSubscription(...) has been removed.
     };
   }, []);
   // -----------------------------------------------------------------

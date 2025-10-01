@@ -18,7 +18,7 @@ import AdminProfile from "../screens/admin/AdminProfile";
 import Traveller from "../screens/garage/Traveller";
 import GarageSettings from "../screens/garage/GarageSettings";
 import GarageHome from "../screens/garage/GarageHome";
-
+import UserManagementScreen from "../screens/garage/UserManagementScreen";
 // --- Stack & Tab Navigators ---
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -203,6 +203,16 @@ const AppNavigator = () => {
       ) : (
         <>
           <Stack.Screen name="GarageTabs" component={GarageTabs} />
+          <Stack.Screen
+            name="UserManagement"
+            component={UserManagementScreen}
+            options={{
+              headerShown: true,
+              title: "Garage Staff",
+              headerStyle: { backgroundColor: "#4CAF50" },
+              headerTintColor: "#fff",
+            }}
+          />
         </>
       )}
     </Stack.Navigator>

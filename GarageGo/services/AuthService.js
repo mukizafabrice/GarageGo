@@ -29,6 +29,27 @@ const AuthService = {
     }
   },
 };
+export const registerUserAndAssignGarageService = async (
+  name,
+  email,
+  garageId
+) => {
+  if (!name || !email || !garageId) {
+    throw new Error("Name, email, and garageId are required for registration.");
+  }
+
+  // Construct the payload as expected by the Express controller
+  const userData = { name, email, garageId };
+
+  // Use the relative path defined in your routes (e.g., /users/register-and-assign)
+  // Note: The specific path depends on your axios base URL configuration.
+  const response = await axiosInstance.post(
+    `/users/register-and-assign`,
+    userData
+  );
+
+  return response.data;
+};
 
 export const addUser = async (userData) => {
   const response = await axiosInstance.post("/user/register", userData);

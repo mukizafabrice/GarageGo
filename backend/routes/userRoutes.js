@@ -3,6 +3,7 @@ import express from "express";
 import {
   registerAdmin,
   loginAdmin,
+  registerUserAndAssignGarage,
   getUsers,
   getUserById,
   updateUser,
@@ -14,6 +15,7 @@ const router = express.Router();
 router.post("/register", registerAdmin);
 // Admin login
 router.post("/login", loginAdmin);
+router.post("/register-and-assign", registerUserAndAssignGarage);
 router.get("/", getUsers);
 
 // @route   GET /api/users/:id

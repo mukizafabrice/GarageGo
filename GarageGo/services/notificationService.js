@@ -27,13 +27,24 @@ export const requestUserPermission = async () => {
 };
 
 export const listenToForegroundMessages = () => {
-  Notifications.addNotificationReceivedListener((notification) => {
-    Alert.alert("New Notification", notification.request.content.body || "");
-  });
+  const subscription = Notifications.addNotificationReceivedListener(
+    (notification) => {
+      Alert.alert("New Notification", notification.request.content.body || "");
+    }
+  );
+
+  // Return the subscription object so the caller can clean it up
+  return subscription;
 };
 
+// Notifications.addNotificationResponseReceivedListener returns a Subscription object
 export const handleNotificationOpenedApp = () => {
-  Notifications.addNotificationResponseReceivedListener((response) => {
-    console.log("Notification clicked:", response);
-  });
+  const subscription = Notifications.addNotificationResponseReceivedListener(
+    (response) => {
+      console.log("Notification clicked:", response);
+    }
+  );
+
+  // Return the subscription object so the caller can clean it up
+  return subscription;
 };

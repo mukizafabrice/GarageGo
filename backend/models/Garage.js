@@ -1,4 +1,3 @@
-// models/Garage.js
 import mongoose from "mongoose";
 
 const garageSchema = new mongoose.Schema(
@@ -10,11 +9,17 @@ const garageSchema = new mongoose.Schema(
     address: { type: String },
     phone: { type: String },
     services: [{ type: String }],
-    userId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-      required: true,
-    },
+
+    // --- MODIFIED FIELD for Multiple User References ---
+    // User requested 'userId' which is defined here as an array
+    // to allow a single Garage to be associated with many User documents.
+    userId: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+      },
+    ],
+
     fcmToken: { type: String },
   },
   { timestamps: true }
