@@ -5,6 +5,7 @@ import connectDB from "./config/db.js";
 import garageRoutes from "./routes/garageRoutes.js";
 import userRoutes from "./routes/userRoutes.js";
 import admin from "./config/firebase.js";
+import notificationRoutes from "./routes/notificationRoutes.js";
 
 // Load environment variables
 dotenv.config();
@@ -22,7 +23,7 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true })); // Good practice to include for form data
 
-const allowedOrigins = ["http://172.20.10.2:8081", "http://localhost:5000"];
+const allowedOrigins = ["http://192.168.1.140:8081", "http://localhost:5000"];
 app.use(
   cors({
     origin: allowedOrigins,
@@ -32,7 +33,8 @@ app.use(
 
 // Routes
 app.use("/api/garages", garageRoutes);
-app.use("/api/user", userRoutes); // for admin routes
+app.use("/api/user", userRoutes);
+app.use("/api/notifications", notificationRoutes);
 
 // Root route
 app.get("/", (req, res) => {

@@ -1,7 +1,7 @@
 import Garage from "../models/Garage.js";
 import { calculateDistance } from "../utils/distance.js";
 import { Expo } from "expo-server-sdk";
-
+import Notification from "../models/Notification.js"; // Adjust the path as needed
 // Initialize a new Expo SDK client
 const expo = new Expo();
 
@@ -114,13 +114,19 @@ export const getGarageByUserId = async (req, res) => {
  * @route   POST /api/garages/nearest
  * @access  Public
  */
-export const findNearestGarage = async (req, res) => {
-  try {
-    // 1. ACCEPT NEW DATA: Include name and phoneNumber from the driver's client request
-    const { latitude, longitude, name, phoneNumber } = req.body;
 
-    // Basic validation for all required fields
-    if (!latitude || !longitude || !name || !phoneNumber) {
+// The updated controller function
+export const findNearestGarage = async (req, res) => {
+  // Capture request body parameters
+  const { latitude, longitude, name, phoneNumber } = req.body;
+
+  // Convert lat/lng to numbers immediately for use
+  const driverLat = parseFloat(latitude);
+  const driverLng = parseFloat(longitude);
+
+  try {
+    // Basic validation
+    if (!driverLat || !driverLng || !name || !phoneNumber) {
       return res.status(400).json({
         success: false,
         message:
@@ -129,13 +135,22 @@ export const findNearestGarage = async (req, res) => {
     }
 
     console.log(
-      `✅ Received request from driver: ${name} (${phoneNumber}) at Lat: ${latitude}, Lng: ${longitude}`
+      `✅ Received request from driver: ${name} (${phoneNumber}) at Lat: ${driverLat}, Lng: ${driverLng}`
     );
 
     const allGarages = await Garage.find();
     console.log(`🔎 Total garages found in database: ${allGarages.length}`);
 
     if (allGarages.length === 0) {
+      // LOG: NO_GARAGE_FOUND
+      const notificationLog = new Notification({
+        driverName: name,
+        driverPhoneNumber: phoneNumber,
+        driverLocation: { type: "Point", coordinates: [driverLng, driverLat] },
+        notificationStatus: "NO_GARAGE_FOUND",
+      });
+      await notificationLog.save();
+
       return res.json({
         success: false,
         message: "No garages found in the database.",
@@ -148,8 +163,8 @@ export const findNearestGarage = async (req, res) => {
     // Find the nearest garage
     for (const garage of allGarages) {
       const distance = calculateDistance(
-        latitude,
-        longitude,
+        driverLat,
+        driverLng,
         garage.latitude,
         garage.longitude
       );
@@ -159,6 +174,7 @@ export const findNearestGarage = async (req, res) => {
       }
     }
 
+    // Check for nearest garage and a valid push token
     if (
       !nearestGarage ||
       !nearestGarage.fcmToken ||
@@ -170,6 +186,17 @@ export const findNearestGarage = async (req, res) => {
       console.log(
         `No nearest garage with a valid FCM token was found. Status: ${tokenStatus}`
       );
+
+      // LOG: INVALID_TOKEN
+      const notificationLog = new Notification({
+        driverName: name,
+        driverPhoneNumber: phoneNumber,
+        driverLocation: { type: "Point", coordinates: [driverLng, driverLat] },
+        nearestGarage: { garageId: nearestGarage._id },
+        notificationStatus: "INVALID_TOKEN",
+      });
+      await notificationLog.save();
+
       return res.json({
         success: false,
         message: `No nearest garage with a valid push token was found.`,
@@ -178,7 +205,7 @@ export const findNearestGarage = async (req, res) => {
 
     console.log(`✅ Found nearest garage: ${nearestGarage.name}`);
 
-    // 2. USE NEW DATA IN NOTIFICATION: Create the message object
+    // Create the notification message object
     const message = {
       to: nearestGarage.fcmToken,
       sound: "default",
@@ -187,26 +214,37 @@ export const findNearestGarage = async (req, res) => {
       data: {
         driverName: name,
         driverPhoneNumber: phoneNumber,
-        driverLat: latitude.toString(),
-        driverLng: longitude.toString(),
+        driverLat: driverLat.toString(),
+        driverLng: driverLng.toString(),
       },
     };
 
     try {
       // Send the notification using the Expo SDK
       let ticketChunk = await expo.sendPushNotificationsAsync([message]);
+
+      // LOG: SENT_SUCCESS
+      const notificationLog = new Notification({
+        driverName: name,
+        driverPhoneNumber: phoneNumber,
+        driverLocation: { type: "Point", coordinates: [driverLng, driverLat] },
+        nearestGarage: { garageId: nearestGarage._id },
+        notificationStatus: "SENT_SUCCESS",
+        expoTicket: ticketChunk, // Store the successful ticket response
+      });
+      await notificationLog.save();
+
       console.log(
         `✅ Notification sent to nearest garage: ${nearestGarage.name}`,
         ticketChunk
       );
 
-      // 3. CORRECTED RESPONSE: Include coordinates and other required details
+      // Send the successful response back to the client
       res.json({
         success: true,
         nearestGarage: {
           name: nearestGarage.name,
           id: nearestGarage.id,
-          // 🛠️ FIX APPLIED HERE: Sending coordinates back to the client
           latitude: nearestGarage.latitude,
           longitude: nearestGarage.longitude,
           address: nearestGarage.address,
@@ -214,18 +252,41 @@ export const findNearestGarage = async (req, res) => {
         },
         message: "Nearest garage found and notified successfully.",
       });
-    } catch (error) {
+    } catch (sendError) {
       console.error(
         `❌ Failed to send notification to ${nearestGarage.name}`,
-        error
+        sendError
       );
+
+      // LOG: SEND_FAILED
+      const notificationLog = new Notification({
+        driverName: name,
+        driverPhoneNumber: phoneNumber,
+        driverLocation: { type: "Point", coordinates: [driverLng, driverLat] },
+        nearestGarage: { garageId: nearestGarage._id },
+        notificationStatus: "SEND_FAILED",
+        expoTicket: { error: sendError.message }, // Log the error message
+      });
+      await notificationLog.save();
+
       res.json({
         success: false,
         message: "Failed to send notification to the nearest garage.",
       });
     }
-  } catch (error) {
-    console.error(`❌ Error in findNearestGarage: ${error.message}`);
+  } catch (serverError) {
+    console.error(`❌ Error in findNearestGarage: ${serverError.message}`);
+
+    // LOG: SERVER_ERROR (Catch-all for unexpected issues)
+    const notificationLog = new Notification({
+      driverName: name,
+      driverPhoneNumber: phoneNumber,
+      driverLocation: { type: "Point", coordinates: [driverLng, driverLat] },
+      notificationStatus: "SERVER_ERROR",
+      expoTicket: { error: serverError.message },
+    });
+    await notificationLog.save();
+
     res.status(500).json({ success: false, message: "Server error" });
   }
 };
