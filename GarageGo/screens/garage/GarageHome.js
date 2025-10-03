@@ -102,11 +102,6 @@ const handleAction = (action) => {
   Alert.alert("Dashboard Action", `Navigating to ${action} screen...`);
 };
 
-// --- Sub-Components ---
-
-/**
- * Component for displaying key statistical metrics using react-native-paper.
- */
 const StatCard = ({ title, value, icon, color }) => {
   const { colors } = useTheme();
   return (

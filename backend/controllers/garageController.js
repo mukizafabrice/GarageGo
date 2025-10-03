@@ -71,7 +71,7 @@ export const getGarageById = async (req, res) => {
   try {
     const garage = await Garage.findById(req.params.id).populate(
       "userId",
-      "name email"
+      "name email role"
     );
     if (!garage)
       return res
@@ -94,7 +94,7 @@ export const getGarageByUserId = async (req, res) => {
     // We use findOne since a user should only have one garage.
     const garage = await Garage.findOne({ userId: req.params.userId }).populate(
       "userId",
-      "name email"
+      "name email role"
     );
 
     if (!garage) {

@@ -14,16 +14,27 @@ import EditGarage from "../screens/admin/EditGarageScreen";
 import UserScreen from "../screens/admin/UserScreen";
 import AdminProfile from "../screens/admin/AdminProfile";
 
-//garage screens
+// --- Garage Owner Screens ---
 import Traveller from "../screens/garage/Traveller";
 import GarageSettings from "../screens/garage/GarageSettings";
 import GarageHome from "../screens/garage/GarageHome";
 import UserManagementScreen from "../screens/garage/UserManagementScreen";
+
+// --- User Screens
+import DriverScreen from "../screens/staff/DriverScreen";
+import StaffSettingsScreen from "../screens/staff/StaffSettingsScreen"; // <-- Add this import
+
+const UserHome = () => (
+  <View style={styles.centered}>
+    <MaterialCommunityIcons name="account" size={60} color="#4CAF50" />
+    <ActivityIndicator size="large" color="#4CAF50" style={{ marginTop: 20 }} />
+  </View>
+);
+
 // --- Stack & Tab Navigators ---
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
-// --- Common Tab Bar Styles ---
 const tabBarBaseStyle = {
   backgroundColor: "#fff",
   height: Platform.OS === "ios" ? 80 : 70,
@@ -100,8 +111,8 @@ const AdminTabs = () => (
   </Tab.Navigator>
 );
 
-// --- Garage Tabs ---
-const GarageTabs = () => (
+// --- Garage Owner Tabs ---
+const GarageOwnerTabs = () => (
   <Tab.Navigator
     screenOptions={{
       tabBarActiveTintColor: "#1B5E20",
@@ -145,6 +156,57 @@ const GarageTabs = () => (
         tabBarLabel: "Settings",
         tabBarIcon: ({ color, size }) => (
           <MaterialCommunityIcons name="cog" color={color} size={size} />
+        ),
+      }}
+    />
+  </Tab.Navigator>
+);
+
+// --- User Tabs ---
+const UserTabs = () => (
+  <Tab.Navigator
+    screenOptions={{
+      tabBarActiveTintColor: "#1B5E20",
+      tabBarInactiveTintColor: "#4CAF50",
+      tabBarStyle: tabBarBaseStyle,
+      tabBarLabelStyle: tabLabelStyle,
+      headerStyle: { backgroundColor: "#4CAF50" },
+      headerTintColor: "#fff",
+      headerTitleStyle: { fontWeight: "bold" },
+      tabBarShowLabel: true,
+    }}
+  >
+    {/* <Tab.Screen
+      name="UserHome"
+      component={UserHome}
+      options={{
+        tabBarLabel: "Home",
+        tabBarIcon: ({ color, size }) => (
+          <MaterialCommunityIcons name="account" color={color} size={size} />
+        ),
+      }}
+    /> */}
+    <Tab.Screen
+      name="Driver"
+      component={DriverScreen}
+      options={{
+        tabBarLabel: "Driver",
+        tabBarIcon: ({ color, size }) => (
+          <MaterialCommunityIcons name="steering" color={color} size={size} />
+        ),
+      }}
+    />
+    <Tab.Screen
+      name="StaffSettings"
+      component={StaffSettingsScreen}
+      options={{
+        tabBarLabel: "Staff Settings",
+        tabBarIcon: ({ color, size }) => (
+          <MaterialCommunityIcons
+            name="account-cog"
+            color={color}
+            size={size}
+          />
         ),
       }}
     />
@@ -200,9 +262,9 @@ const AppNavigator = () => {
             }}
           />
         </>
-      ) : (
+      ) : user?.role === "garageOwner" ? (
         <>
-          <Stack.Screen name="GarageTabs" component={GarageTabs} />
+          <Stack.Screen name="GarageOwnerTabs" component={GarageOwnerTabs} />
           <Stack.Screen
             name="UserManagement"
             component={UserManagementScreen}
@@ -214,6 +276,9 @@ const AppNavigator = () => {
             }}
           />
         </>
+      ) : (
+        // Default to user tabs
+        <Stack.Screen name="UserTabs" component={UserTabs} />
       )}
     </Stack.Navigator>
   );
@@ -233,5 +298,11 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
+  },
+  centered: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#fff",
   },
 });

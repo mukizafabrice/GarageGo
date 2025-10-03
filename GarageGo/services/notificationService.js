@@ -1,6 +1,7 @@
 import * as Notifications from "expo-notifications";
 import * as Device from "expo-device";
 import { Alert, Platform } from "react-native";
+import { axiosInstance } from "./apiConfig";
 
 export const requestUserPermission = async () => {
   if (Device.isDevice) {
@@ -47,4 +48,85 @@ export const handleNotificationOpenedApp = () => {
 
   // Return the subscription object so the caller can clean it up
   return subscription;
+};
+
+//notification crud operations
+
+const NOTIFICATION_BASE_URL = "/notifications";
+
+export const getAllNotifications = async () => {
+  try {
+    const response = await axiosInstance.get(NOTIFICATION_BASE_URL);
+    return response.data; // Includes success, count, and data array
+  } catch (error) {
+    throw error.response?.data || error;
+  }
+};
+
+/**
+ * Retrieves a single notification log by its ID.
+ * @param {string} id - The MongoDB ObjectId of the notification log.
+ * @returns {Promise<Object>} A promise that resolves to a single notification object.
+ */
+export const getNotificationById = async (id) => {
+  try {
+    const response = await axiosInstance.get(`${NOTIFICATION_BASE_URL}/${id}`);
+    return response.data; // Includes success and data object
+  } catch (error) {
+    throw error.response?.data || error;
+  }
+};
+
+export const getNotificationsByGarageId = async (garageId) => {
+  try {
+    const response = await axiosInstance.get(
+      `${NOTIFICATION_BASE_URL}/garage/${garageId}`
+    );
+    return response.data; // Includes success, count, and data array
+  } catch (error) {
+    throw error.response?.data || error;
+  }
+};
+
+export const updateNotificationStatus = async (id, updateData) => {
+  try {
+    const response = await axiosInstance.put(
+      `${NOTIFICATION_BASE_URL}/${id}`,
+      updateData
+    );
+    return response.data; // Includes success and updated data object
+  } catch (error) {
+    throw error.response?.data || error;
+  }
+};
+
+export const deleteNotification = async (id) => {
+  try {
+    const response = await axiosInstance.delete(
+      `${NOTIFICATION_BASE_URL}/${id}`
+    );
+    return response.data;
+  } catch (error) {
+    throw error.response?.data || error;
+  }
+};
+
+export const deleteNotificationsByGarageId = async (garageId) => {
+  try {
+    const response = await axiosInstance.delete(
+      `${NOTIFICATION_BASE_URL}/garage/${garageId}`
+    );
+    return response.data; // Includes success and deletedCount
+  } catch (error) {
+    throw error.response?.data || error;
+  }
+};
+
+export const deleteAllNotifications = async () => {
+  try {
+    const response = await axiosInstance.delete(NOTIFICATION_BASE_URL);
+    return response.data; // Includes success and deletedCount
+  } catch (error) {
+    throw error.response?.data || error;
+  }
 };

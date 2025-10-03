@@ -22,14 +22,6 @@ router.post("/", createGarage);
 // @access  Public
 router.get("/", getGarages);
 
-// @route   GET /api/garages/nearby?lat=xx&lng=yy&radius=5000
-// @desc    Get nearby garages using coordinates
-// @access  Public
-// router.get("/nearby", getNearbyGarages);
-
-// @route   POST /api/garages/nearest
-// @desc    Find the single nearest garage and notify it
-// @access  Public
 router.post("/nearest", findNearestGarage); // ✅ Add the new route here
 router.post("/updateToken", async (req, res) => {
   const { garageId, fcmToken } = req.body;

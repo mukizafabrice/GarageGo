@@ -164,72 +164,47 @@ export const deleteUser = async (req, res) => {
 };
 
 import Garage from "../models/Garage.js";
-// -----------------------------------------------------------------------
 
-/**
- * @desc Registers a new User (role fixed as 'user') and
- * assigns them to a specific Garage document by extending the userId array.
- * The user's password is set to the default '123'.
- * @route POST /api/users/register-and-assign
- * @access Public (or protected if only admins can assign users)
- */
 export const registerUserAndAssignGarage = async (req, res) => {
-  // Destructure required fields from the request body.
-  // 'password' and 'role' are no longer expected in the body.
-  const { name, email, garageId } = req.body; // <<< ROLE REMOVED FROM DESTRUCTURING
-
-  // Define the default password as requested
+  const { name, email, garageId } = req.body;
   const defaultPassword = "123";
-
-  // Define the fixed role as requested
-  const fixedRole = "user"; // <<< FIXED ROLE ASSIGNED LOCALLY
-
+  const fixedRole = "user";
   try {
-    // 1. Validate Input (removed password from required checks)
     if (!name || !email || !garageId) {
       return res.status(400).json({
         message: "Please provide name, email, and the target garageId.",
       });
     }
-
-    // 2. Check if user already exists
+    console.log("Checking if user exists...");
     const userExists = await User.findOne({ email });
     if (userExists) {
       return res
         .status(400)
         .json({ message: "User with this email already exists." });
     }
-
-    // 3. Find the Garage to ensure it exists before creating the User
+    console.log("Finding garage:", garageId);
     const garage = await Garage.findById(garageId);
     if (!garage) {
       return res
         .status(404)
         .json({ message: "Garage not found. Cannot assign user." });
     }
-
-    // 4. Hash the Default Password
+    console.log("Hashing password...");
     const salt = await bcrypt.genSalt(10);
-    // Use the defaultPassword for hashing
     const hashedPassword = await bcrypt.hash(defaultPassword, salt);
-
-    // 5. Create the new User document
+    console.log("Creating user...");
     const createdUser = await User.create({
       name,
       email,
-      password: hashedPassword, // Use the hashed default password
-      role: fixedRole, // <<< HARDCODED 'user' ROLE
+      password: hashedPassword,
+      role: fixedRole,
     });
-
-    // 6. Extend the Garage's userId array with the new User's ID
-    // We use $push to atomically add the new user's ID to the array.
+    console.log("Updating garage...");
     const updatedGarage = await Garage.findByIdAndUpdate(
       garageId,
       { $push: { userId: createdUser._id } },
-      { new: true, runValidators: true } // {new: true} returns the updated document
+      { new: true, runValidators: true }
     );
-
-    // 7. Respond with success
     res.status(201).json({
       message: `User registered with role '${fixedRole}', default password '123', and successfully assigned to garage.`,
       user: {
@@ -238,17 +213,14 @@ export const registerUserAndAssignGarage = async (req, res) => {
         email: createdUser.email,
         role: createdUser.role,
       },
-      // You may want to return the updated garage details as well
       garage: {
         _id: updatedGarage._id,
         name: updatedGarage.name,
-        // Optionally omit the large userId array if not needed in the response
         assignedUsersCount: updatedGarage.userId.length,
       },
     });
   } catch (error) {
-    // Handle validation, database, or server errors
-    console.error("Server Error:", error);
+    console.error("Server Error:", error, error?.message, error?.stack);
     res.status(500).json({
       message: "Server error during user registration and garage assignment.",
       details: error.message,

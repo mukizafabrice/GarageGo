@@ -29,7 +29,7 @@ const AuthService = {
     }
   },
 };
-export const registerUserAndAssignGarageService = async (
+export const registerUserAndAssignGarage = async (
   name,
   email,
   garageId
@@ -44,7 +44,7 @@ export const registerUserAndAssignGarageService = async (
   // Use the relative path defined in your routes (e.g., /users/register-and-assign)
   // Note: The specific path depends on your axios base URL configuration.
   const response = await axiosInstance.post(
-    `/users/register-and-assign`,
+    `/user/register-and-assign`,
     userData
   );
 

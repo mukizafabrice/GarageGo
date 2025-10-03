@@ -23,7 +23,7 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true })); // Good practice to include for form data
 
-const allowedOrigins = ["http://192.168.1.140:8081", "http://localhost:5000"];
+const allowedOrigins = ["http://192.168.1.171:8081", "http://localhost:5000"];
 app.use(
   cors({
     origin: allowedOrigins,

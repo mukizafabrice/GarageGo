@@ -1,5 +1,6 @@
 import React, { useEffect } from "react";
 import { View, ActivityIndicator, StyleSheet } from "react-native";
+import { Provider as PaperProvider } from "react-native-paper"; // <-- Add this import
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import RootNavigator from "./navigation/RootNavigator";
 
@@ -38,9 +39,11 @@ const App = () => {
   }, []);
 
   return (
-    <AuthProvider>
-      <AppContent />
-    </AuthProvider>
+    <PaperProvider>
+      <AuthProvider>
+        <AppContent />
+      </AuthProvider>
+    </PaperProvider>
   );
 };
 
