@@ -209,7 +209,7 @@ const SettingsScreen = ({ navigation }) => {
             <List.Icon {...props} icon="lock-reset" color={PRIMARY_COLOR} />
           )}
           right={(props) => <List.Icon {...props} icon="chevron-right" />}
-          onPress={() => handleNavigation("PasswordChange", "Change Password")}
+          onPress={() => navigation.navigate("ChangePassword")}
           style={styles.listItem}
         />
 
@@ -225,7 +225,7 @@ const SettingsScreen = ({ navigation }) => {
             />
           )}
           right={(props) => <List.Icon {...props} icon="chevron-right" />}
-          onPress={() => handleNavigation("PrivacyPolicy", "Privacy Policy")}
+          onPress={() => navigation.navigate("Privacy")}
           style={styles.listItem}
         />
 
@@ -241,7 +241,7 @@ const SettingsScreen = ({ navigation }) => {
             />
           )}
           right={(props) => <List.Icon {...props} icon="chevron-right" />}
-          onPress={() => handleNavigation("Support", "Help & Support")}
+          onPress={() => navigation.navigate("Help")}
           style={styles.listItem}
         />
 
@@ -258,6 +258,20 @@ const SettingsScreen = ({ navigation }) => {
           )}
           right={(props) => <List.Icon {...props} icon="chevron-right" />}
           onPress={() => navigation.navigate("UserManagement")}
+          style={styles.listItem}
+        />
+        <List.Item
+          title="Manage Notifications"
+          description="View and manage stored notifications"
+          left={(props) => (
+            <List.Icon
+              {...props}
+              icon="bell-cog-outline"
+              color={PRIMARY_COLOR}
+            />
+          )}
+          right={(props) => <List.Icon {...props} icon="chevron-right" />}
+          onPress={() => navigation.navigate("NotificationsManager")}
           style={styles.listItem}
         />
       </List.Section>

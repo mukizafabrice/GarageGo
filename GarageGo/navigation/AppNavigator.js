@@ -13,17 +13,28 @@ import AddGarage from "../screens/admin/AddGarageScreen";
 import EditGarage from "../screens/admin/EditGarageScreen";
 import UserScreen from "../screens/admin/UserScreen";
 import AdminProfile from "../screens/admin/AdminProfile";
+import NotificationAdmin from "../screens/admin/NotificationsAdmin";
 
 // --- Garage Owner Screens ---
 import Traveller from "../screens/garage/Traveller";
 import GarageSettings from "../screens/garage/GarageSettings";
 import GarageHome from "../screens/garage/GarageHome";
 import UserManagementScreen from "../screens/garage/UserManagementScreen";
+import NotificationsManager from "../screens/garage/NotificationsOwner";
 
 // --- User Screens
 import DriverScreen from "../screens/staff/DriverScreen";
-import StaffSettingsScreen from "../screens/staff/StaffSettingsScreen"; // <-- Add this import
+import StaffSettingsScreen from "../screens/staff/StaffSettingsScreen";
+// common screens
 
+import Profile from "../screens/common/Profile";
+// import Notifications from "../screens/common/Notifications";
+import Help from "../screens/common/HelpSupportScreen";
+import LandingPage from "../screens/LandingPage";
+import ChangePassword from "../screens/common/ChangePassword";
+import SwitchMode from "../screens/common/SwitchModeScreen";
+import Language from "../screens/common/LanguageScreen";
+import Privacy from "../screens/common/PrivacyScreen";
 const UserHome = () => (
   <View style={styles.centered}>
     <MaterialCommunityIcons name="account" size={60} color="#4CAF50" />
@@ -261,6 +272,16 @@ const AppNavigator = () => {
               headerTintColor: "#fff",
             }}
           />
+          <Stack.Screen
+            name="NotificationAdmin"
+            component={NotificationAdmin}
+            options={{
+              headerShown: true,
+              title: "Manage Notifications",
+              headerStyle: { backgroundColor: "#4CAF50" },
+              headerTintColor: "#fff",
+            }}
+          />
         </>
       ) : user?.role === "garageOwner" ? (
         <>
@@ -275,11 +296,81 @@ const AppNavigator = () => {
               headerTintColor: "#fff",
             }}
           />
+          <Stack.Screen
+            name="NotificationsManager"
+            component={NotificationsManager}
+            options={{
+              headerShown: true,
+              title: "Manage Notifications",
+              headerStyle: { backgroundColor: "#4CAF50" },
+              headerTintColor: "#fff",
+            }}
+          />
         </>
       ) : (
         // Default to user tabs
         <Stack.Screen name="UserTabs" component={UserTabs} />
       )}
+      <Stack.Screen
+        name="Profile"
+        component={Profile}
+        options={{
+          headerShown: true,
+          title: "Profile",
+          headerStyle: { backgroundColor: "#4CAF50" },
+          headerTintColor: "#fff",
+        }}
+      />
+      <Stack.Screen
+        name="ChangePassword"
+        component={ChangePassword}
+        options={{
+          headerShown: true,
+          title: "Change Password",
+          headerStyle: { backgroundColor: "#4CAF50" },
+          headerTintColor: "#fff",
+        }}
+      />
+      <Stack.Screen
+        name="SwitchMode"
+        component={SwitchMode}
+        options={{
+          headerShown: true,
+          title: "Switch Mode",
+          headerStyle: { backgroundColor: "#4CAF50" },
+          headerTintColor: "#fff",
+        }}
+      />
+      <Stack.Screen
+        name="Help"
+        component={Help}
+        options={{
+          headerShown: true,
+          title: "Help & Support",
+          headerStyle: { backgroundColor: "#4CAF50" },
+          headerTintColor: "#fff",
+        }}
+      />
+      <Stack.Screen
+        name="Language"
+        component={Language}
+        options={{
+          headerShown: true,
+          title: "Language",
+          headerStyle: { backgroundColor: "#4CAF50" },
+          headerTintColor: "#fff",
+        }}
+      />
+      <Stack.Screen
+        name="Privacy"
+        component={Privacy}
+        options={{
+          headerShown: true,
+          title: "Privacy Policy",
+          headerStyle: { backgroundColor: "#4CAF50" },
+          headerTintColor: "#fff",
+        }}
+      />
     </Stack.Navigator>
   );
 };

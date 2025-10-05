@@ -227,3 +227,45 @@ export const registerUserAndAssignGarage = async (req, res) => {
     });
   }
 };
+
+// Update user password with current password check
+export const updateUserPassword = async (req, res) => {
+  const { userId } = req.params; // or req.body, depending on your route
+  const { currentPassword, newPassword } = req.body;
+
+  if (!currentPassword || !newPassword || newPassword.length < 6) {
+    return res
+      .status(400)
+      .json({
+        message: "Current and new password (min 6 chars) are required.",
+      });
+  }
+
+  try {
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ message: "User not found." });
+
+    // Check current password
+    const isMatch = await bcrypt.compare(currentPassword, user.password);
+    if (!isMatch) {
+      return res
+        .status(401)
+        .json({ message: "Current password is incorrect." });
+    }
+
+    // Hash and update new password
+    const salt = await bcrypt.genSalt(10);
+    user.password = await bcrypt.hash(newPassword, salt);
+
+    await user.save();
+
+    res.status(200).json({ message: "Password updated successfully." });
+  } catch (error) {
+    res
+      .status(500)
+      .json({
+        message: "Server error updating password.",
+        details: error.message,
+      });
+  }
+};

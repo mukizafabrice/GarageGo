@@ -29,11 +29,7 @@ const AuthService = {
     }
   },
 };
-export const registerUserAndAssignGarage = async (
-  name,
-  email,
-  garageId
-) => {
+export const registerUserAndAssignGarage = async (name, email, garageId) => {
   if (!name || !email || !garageId) {
     throw new Error("Name, email, and garageId are required for registration.");
   }
@@ -72,7 +68,18 @@ export const updateUser = async (id, updates) => {
   const response = await axiosInstance.put(`/user/${id}`, updates);
   return response.data;
 };
-
+//update user password
+export const updateUserPassword = async (
+  userId,
+  currentPassword,
+  newPassword
+) => {
+  const response = await axiosInstance.put(`/user/${userId}/password`, {
+    currentPassword,
+    newPassword,
+  });
+  return response.data;
+};
 // Delete a user
 export const deleteUser = async (id) => {
   const response = await axiosInstance.delete(`/user/${id}`);

@@ -6,7 +6,6 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
-  TouchableOpacity,
 } from "react-native";
 import {
   TextInput,
@@ -15,46 +14,29 @@ import {
   useTheme,
   HelperText,
   Text,
-  IconButton,
 } from "react-native-paper";
-import { useAuth } from "../../context/AuthContext";
-// NOTE: Assuming useNavigation is imported in the real component file
-// import { useNavigation } from "@react-navigation/native";
+import { updateUserPassword } from "../../services/AuthService"; // your service
+import { useAuth } from "../../context/AuthContext"; // for user info
 
-// Define Brand Color
 const PRIMARY_COLOR = "#4CAF50";
 
 const ChangePasswordScreen = ({ navigation }) => {
   const { colors } = useTheme();
-
-  // Mocking useAuth for standalone file completeness
-  const useAuthMock = () => ({
-    // In a real app, this would be an actual function interacting with Firebase/Auth service
-    changePassword: (oldP, newP) =>
-      new Promise((resolve, reject) => {
-        setTimeout(() => {
-          if (oldP === "wrongpassword") {
-            reject({ message: "Incorrect current password." });
-          } else {
-            resolve();
-          }
-        }, 1500);
-      }),
-  });
-  const { changePassword } = useAuthMock();
-
-  // State for form fields
+  const { user } = useAuth(); 
+  const userId = user?._id; 
+  // console.log("User ID:", userId);
+  // Form State
   const [oldPassword, setOldPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
-  // State for password visibility
+  // Password visibility
   const [showOldPassword, setShowOldPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-  // Validation State
+  // Validation
   const [oldPassError, setOldPassError] = useState("");
   const [newPassError, setNewPassError] = useState("");
   const [confirmPassError, setConfirmPassError] = useState("");
@@ -86,24 +68,22 @@ const ChangePasswordScreen = ({ navigation }) => {
   };
 
   const handleChangePassword = async () => {
-    if (!validate()) {
-      return;
-    }
+    if (!validate()) return;
 
     setIsLoading(true);
 
     try {
-      await changePassword(oldPassword, newPassword);
+      await updateUserPassword(userId, oldPassword, newPassword);
       Alert.alert("Success", "Your password has been changed successfully!");
-      // Clear fields upon success
       setOldPassword("");
       setNewPassword("");
       setConfirmPassword("");
-      // navigation.goBack(); // Uncomment in a real app
+      // navigation.goBack(); // optional
     } catch (error) {
+      console.error(error);
       Alert.alert(
         "Update Failed",
-        error.message ||
+        error.response?.data?.message ||
           "Could not change password. Please check your current password."
       );
     } finally {
@@ -148,7 +128,6 @@ const ChangePasswordScreen = ({ navigation }) => {
               Passwords must be at least {MIN_PASSWORD_LENGTH} characters long.
             </Text>
 
-            {/* Current Password Input */}
             <TextInput
               label="Current Password"
               value={oldPassword}
@@ -164,7 +143,6 @@ const ChangePasswordScreen = ({ navigation }) => {
               {oldPassError}
             </HelperText>
 
-            {/* New Password Input */}
             <TextInput
               label="New Password"
               value={newPassword}
@@ -180,7 +158,6 @@ const ChangePasswordScreen = ({ navigation }) => {
               {newPassError}
             </HelperText>
 
-            {/* Confirm New Password Input */}
             <TextInput
               label="Confirm New Password"
               value={confirmPassword}
@@ -199,7 +176,6 @@ const ChangePasswordScreen = ({ navigation }) => {
               {confirmPassError}
             </HelperText>
 
-            {/* Save Button */}
             <Button
               mode="contained"
               icon="lock-reset"
@@ -228,46 +204,20 @@ const ChangePasswordScreen = ({ navigation }) => {
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  contentContainer: {
-    padding: 20,
-    paddingBottom: 40,
-  },
-  title: {
-    marginBottom: 20,
-    fontWeight: "bold",
-    textAlign: "center",
-  },
-  passwordCard: {
-    borderRadius: 15,
-    padding: 20,
-    elevation: 4,
-  },
-  formContainer: {
-    width: "100%",
-  },
-  infoText: {
-    marginBottom: 15,
-    textAlign: "center",
-  },
-  input: {
-    marginBottom: 4,
-  },
+  container: { flex: 1 },
+  contentContainer: { padding: 20, paddingBottom: 40 },
+  title: { marginBottom: 20, fontWeight: "bold", textAlign: "center" },
+  passwordCard: { borderRadius: 15, padding: 20, elevation: 4 },
+  formContainer: { width: "100%" },
+  infoText: { marginBottom: 15, textAlign: "center" },
+  input: { marginBottom: 4 },
   saveButton: {
     backgroundColor: PRIMARY_COLOR,
     borderRadius: 10,
     marginTop: 20,
   },
-  saveContent: {
-    paddingVertical: 8,
-  },
-  saveLabel: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#FFFFFF",
-  },
+  saveContent: { paddingVertical: 8 },
+  saveLabel: { fontSize: 18, fontWeight: "bold", color: "#FFFFFF" },
 });
 
 export default ChangePasswordScreen;

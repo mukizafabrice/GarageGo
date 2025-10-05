@@ -7,6 +7,7 @@ import {
   getUsers,
   getUserById,
   updateUser,
+  updateUserPassword,
   deleteUser,
 } from "../controllers/userController.js";
 
@@ -17,20 +18,9 @@ router.post("/register", registerAdmin);
 router.post("/login", loginAdmin);
 router.post("/register-and-assign", registerUserAndAssignGarage);
 router.get("/", getUsers);
-
-// @route   GET /api/users/:id
-// @desc    Get user by ID
-// @access  Admin
 router.get("/:id", getUserById);
-
-// @route   PUT /api/users/:id
-// @desc    Update user (excluding password)
-// @access  Admin
 router.put("/:id", updateUser);
-
-// @route   DELETE /api/users/:id
-// @desc    Delete user
-// @access  Admin
+router.put("/:userId/password", updateUserPassword);
 router.delete("/:id", deleteUser);
 
 export default router;
