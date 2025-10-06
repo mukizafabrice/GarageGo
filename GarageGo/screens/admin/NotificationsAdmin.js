@@ -1,5 +1,11 @@
-import React, { useState } from "react";
-import { View, StyleSheet, ScrollView, RefreshControl } from "react-native";
+import React, { useState, useEffect, useCallback } from "react";
+import {
+  View,
+  StyleSheet,
+  ScrollView,
+  RefreshControl,
+  Alert, // <-- CORRECTED: Imported Alert from 'react-native'
+} from "react-native";
 import {
   Text,
   Avatar,
@@ -8,8 +14,17 @@ import {
   Button,
   Card,
   Chip,
+  // Alert was removed from react-native-paper import
 } from "react-native-paper";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+// UPDATED: Assuming these are implemented and return Promises for CRUD operations
+import {
+  getNotificationsByGarageId,
+  deleteNotification, // Added for single item delete
+  deleteNotificationsByGarageId, // Added for bulk delete
+} from "../../services/notificationService";
+import { getGarageByUserId } from "../../services/garageService";
+import { useAuth } from "../../context/AuthContext";
 
 const PRIMARY_COLOR = "#4CAF50";
 
@@ -17,53 +32,21 @@ const PRIMARY_COLOR = "#4CAF50";
 const statusColor = (status, colors) => {
   switch (status) {
     case "SENT_SUCCESS":
-      // Successful notification sent (Note: This is now filtered from mock data)
       return PRIMARY_COLOR;
     case "NO_GARAGE_FOUND":
-      // Error: Failed to assign to a garage
       return colors.error;
     case "INVALID_TOKEN":
-      // Warning: Driver token issue
-      return "#FFA000";
+      return "#FFA000"; // Orange/Warning
     case "SEND_FAILED":
-      // Error: Expo/Firebase failed to send
+    case "DRIVER_DATA_ERROR":
       return colors.error;
     case "SERVER_ERROR":
-      // Neutral/Grey: Internal server issue
-      return "#BDBDBD";
+      return "#BDBDBD"; // Grey/Neutral
     default:
       return colors.backdrop;
   }
 };
 
-// Mock notifications data (Filtered: Removed SENT_SUCCESS item)
-const mockNotifications = [
-  {
-    _id: "2",
-    driverName: "Jane Smith",
-    driverPhoneNumber: "+1987654321",
-    driverLocation: { coordinates: [40.7128, -74.006] },
-    nearestGarage: {},
-    notificationStatus: "NO_GARAGE_FOUND",
-    expoTicket: null,
-    createdAt: new Date(Date.now() - 3600 * 1000).toISOString(),
-  },
-  {
-    _id: "3",
-    driverName: "Robert Fox",
-    driverPhoneNumber: "+1555123456",
-    driverLocation: { coordinates: [32.7767, -96.797] },
-    nearestGarage: { garageId: "GARAGE456" },
-    notificationStatus: "INVALID_TOKEN",
-    expoTicket: "InvalidTokenX",
-    createdAt: new Date(Date.now() - 7200 * 1000).toISOString(),
-  },
-];
-
-// --------------------------------------------------------------------------
-// NotificationCard COMPONENT
-// Manages its own expansion state to keep the list clean.
-// --------------------------------------------------------------------------
 const NotificationCard = ({ notif, onClear, colors, PRIMARY_COLOR }) => {
   const [isExpanded, setIsExpanded] = useState(false);
 
@@ -76,11 +59,30 @@ const NotificationCard = ({ notif, onClear, colors, PRIMARY_COLOR }) => {
 
   const statusBackground = statusColor(notif.notificationStatus, colors);
 
+  // --- Defensive function to render the Garage ID/Name ---
+  const renderAssignedGarage = () => {
+    const garage = notif.nearestGarage?.garageId;
+    if (!garage) {
+      return "Not Assigned";
+    }
+
+    // Case 1: Populated object (has properties like name or _id)
+    if (typeof garage === "object" && garage !== null) {
+      // Use name first, then _id as fallback
+      return garage.name || garage._id || "Assigned (Details missing)";
+    }
+
+    // Case 2: Non-populated string ID, or an unexpected object converted to string
+    return String(garage);
+  };
+  // ------------------------------------------------------------------------
+
   return (
     <Card key={notif._id} style={styles.card}>
       <Card.Title
         title={notif.driverName || "Unknown Driver"}
-        subtitle={notif.driverPhoneNumber}
+        // Use String() defensively
+        subtitle={String(notif.driverPhoneNumber || "N/A")}
         titleStyle={styles.titleStyle}
         left={(props) => (
           <Avatar.Icon
@@ -119,7 +121,6 @@ const NotificationCard = ({ notif, onClear, colors, PRIMARY_COLOR }) => {
 
       {isExpanded && (
         <Card.Content style={styles.expandedContent}>
-          {/* Detailed Content */}
           <Text variant="titleSmall" style={styles.detailHeader}>
             Request Details
           </Text>
@@ -145,8 +146,9 @@ const NotificationCard = ({ notif, onClear, colors, PRIMARY_COLOR }) => {
               color={PRIMARY_COLOR}
               style={styles.detailIcon}
             />
+
             <Text style={styles.detailText}>
-              Assigned Garage: {notif.nearestGarage?.garageId || "Not Assigned"}
+              Assigned Garage: {renderAssignedGarage()}
             </Text>
           </View>
 
@@ -160,7 +162,8 @@ const NotificationCard = ({ notif, onClear, colors, PRIMARY_COLOR }) => {
                 style={styles.detailIcon}
               />
               <Text style={styles.detailText} numberOfLines={1}>
-                Ticket ID: {notif.expoTicket}
+                {/* Use String() defensively */}
+                Ticket ID: {String(notif.expoTicket)}
               </Text>
             </View>
           )}
@@ -194,43 +197,154 @@ const NotificationCard = ({ notif, onClear, colors, PRIMARY_COLOR }) => {
           </View>
         </Card.Content>
       )}
-
-      {/* The Card.Actions component is no longer rendered when the card is collapsed.
-        The only removal button, "Clear Notification", is correctly placed inside the expanded view.
-      */}
     </Card>
   );
 };
 
-// NOTE: Component signature updated to accept navigation prop
+// --- NotificationsManager Component ---
 const NotificationsManager = ({ navigation }) => {
   const { colors } = useTheme();
-  const [notifications, setNotifications] = useState(mockNotifications);
-  const [loading, setLoading] = useState(false);
+  const { user } = useAuth();
+  const userId = user?._id;
+
+  const [notifications, setNotifications] = useState([]);
+  const [garageId, setGarageId] = useState(null);
+  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState(null);
 
-  const onRefresh = async () => {
-    setRefreshing(true);
-    // TODO: Fetch real data here
-    setTimeout(() => {
-      setRefreshing(false);
-      // Simulate refetching data after refresh
-      setNotifications(mockNotifications.slice(0, 2));
-    }, 1000);
-  };
-
-  // Function to clear a single notification (replaces handleDelete)
-  const handleClear = (id) => {
-    setNotifications((prev) => prev.filter((notif) => notif._id !== id));
-  };
-
-  // New function to clear ALL notifications
-  const handleClearAllNotifications = () => {
-    setLoading(true);
-    setTimeout(() => {
-      setNotifications([]);
+  // --- Core Data Fetching Function (Memoized) ---
+  const fetchNotifications = useCallback(async (id) => {
+    if (!id) {
       setLoading(false);
-    }, 500);
+      setRefreshing(false);
+      return;
+    }
+
+    try {
+      const notifResponse = await getNotificationsByGarageId(id);
+      const sortedNotifications = (notifResponse.data || []).sort(
+        (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
+      );
+      setNotifications(sortedNotifications);
+      setError(null);
+    } catch (e) {
+      console.error("Fetch Notifications Error:", e);
+      Alert.alert(
+        "Error",
+        "Failed to load notifications. Please try again later."
+      );
+      setError("Failed to load notifications.");
+      setNotifications([]);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  // --- Initial/Garage ID Fetch Effect ---
+  useEffect(() => {
+    const fetchGarageIdAndNotifications = async () => {
+      if (!userId) {
+        setLoading(false);
+        return;
+      }
+
+      setLoading(true);
+      try {
+        const garageResponse = await getGarageByUserId(userId);
+        const id = garageResponse.data?._id;
+        setGarageId(id);
+
+        if (id) {
+          await fetchNotifications(id);
+        } else {
+          setNotifications([]);
+          setLoading(false);
+        }
+      } catch (e) {
+        console.error("Fetch Garage ID Error:", e);
+        Alert.alert("Error", "Failed to find garage for user.");
+        setError("Failed to find garage for user.");
+        setLoading(false);
+      }
+    };
+
+    fetchGarageIdAndNotifications();
+  }, [userId, fetchNotifications]);
+
+  // --- Refresh Logic ---
+  const onRefresh = () => {
+    setRefreshing(true);
+    fetchNotifications(garageId);
+  };
+
+  // UPDATED: Function to clear a single notification (client-side and API)
+  const handleClear = (id) => {
+    Alert.alert(
+      "Confirm Deletion", // Title
+      "Are you sure you want to clear this notification?", // Message
+      [
+        {
+          text: "Cancel",
+          style: "cancel",
+          onPress: () => console.log("Deletion cancelled"), // Optional: log action
+        },
+        {
+          text: "Clear", // Destructive option
+          style: "destructive",
+          onPress: async () => {
+            try {
+              // API call to persist the delete action
+              await deleteNotification(id);
+
+              // Update state on success
+              setNotifications((prev) =>
+                prev.filter((notif) => notif._id !== id)
+              );
+              Alert.alert("Success", "Notification cleared successfully.");
+            } catch (e) {
+              console.error("Delete Notification Error:", e);
+              Alert.alert(
+                "Error",
+                "Failed to clear notification. Please try again."
+              );
+            }
+          },
+        },
+      ],
+      { cancelable: true }
+    );
+  };
+
+  // UPDATED: Function to clear ALL notifications (client-side and API)
+  const handleClearAllNotifications = async () => {
+    if (!garageId) {
+      Alert.alert(
+        "Error",
+        "Cannot clear all notifications: Garage ID not found."
+      );
+      return;
+    }
+
+    setLoading(true); // Show loading overlay while deleting
+
+    try {
+      // API call to persist the delete ALL action
+      await deleteNotificationsByGarageId(garageId);
+
+      // Update state on success
+      setNotifications([]);
+      Alert.alert("Success", "All notifications cleared successfully.");
+    } catch (e) {
+      console.error("Clear All Notifications Error:", e);
+      Alert.alert(
+        "Error",
+        "Failed to clear all notifications. Please try again."
+      );
+    } finally {
+      setLoading(false); // Hide loading overlay
+    }
   };
 
   return (
@@ -260,6 +374,7 @@ const NotificationsManager = ({ navigation }) => {
           Tap the **chevron icon** on a request to view detailed information.
         </Text>
       </View>
+
       {loading ? (
         <ActivityIndicator
           animating={true}
@@ -278,7 +393,7 @@ const NotificationsManager = ({ navigation }) => {
             variant="headlineSmall"
             style={{ marginTop: 10, color: colors.onSurface }}
           >
-            No Driver Requests Found
+            {error ? "Error Loading Requests" : "No Driver Requests Found"}
           </Text>
           <Text
             style={{
@@ -287,8 +402,9 @@ const NotificationsManager = ({ navigation }) => {
               marginTop: 5,
             }}
           >
-            All active requests and notifications will appear here for
-            management.
+            {error
+              ? `An error occurred: ${error}`
+              : "All active requests and notifications will appear here for management."}
           </Text>
         </View>
       ) : (
@@ -302,12 +418,11 @@ const NotificationsManager = ({ navigation }) => {
             />
           }
         >
-          {/* Map through notifications and render the new component */}
           {notifications.map((notif) => (
             <NotificationCard
               key={notif._id}
               notif={notif}
-              onClear={handleClear} // Updated prop name to onClear
+              onClear={handleClear}
               colors={colors}
               PRIMARY_COLOR={PRIMARY_COLOR}
             />
@@ -324,7 +439,6 @@ const styles = StyleSheet.create({
     padding: 20,
     paddingBottom: 0,
   },
-  // New style to contain the title and clear all button
   headerTitleRow: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -344,9 +458,8 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     elevation: 2,
     backgroundColor: "#FFFFFF",
-    overflow: "hidden", // Ensures borders/shadows look correct on expansion
+    overflow: "hidden",
   },
-  // Style for Card.Title to make space for the toggle
   titleStyle: {
     paddingRight: 0,
   },
@@ -360,12 +473,11 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     fontSize: 12,
   },
-  // Styles for the expanded content
   expandedContent: {
     paddingVertical: 12,
     paddingHorizontal: 16,
     borderTopWidth: 1,
-    borderTopColor: "#f0f0f0", // Light divider for expanded section
+    borderTopColor: "#f0f0f0",
   },
   detailHeader: {
     fontWeight: "bold",
@@ -379,12 +491,12 @@ const styles = StyleSheet.create({
   },
   detailIcon: {
     marginRight: 8,
-    width: 20, // Fixed width for icon alignment
+    width: 20,
   },
   detailText: {
     fontSize: 14,
     flexShrink: 1,
-    color: "#333", // Dark text for readability
+    color: "#333",
   },
   expandedActions: {
     marginTop: 15,
@@ -395,19 +507,6 @@ const styles = StyleSheet.create({
     padding: 0,
     minWidth: 40,
     height: 40,
-  },
-  // We can keep this style, although the Card.Actions component is no longer rendered
-  // in the collapsed state.
-  cardActions: {
-    justifyContent: "flex-end",
-    paddingTop: 0,
-    paddingRight: 8,
-    height: 0,
-    padding: 0,
-  },
-  row: {
-    flexDirection: "row",
-    alignItems: "center",
   },
   emptyState: {
     flex: 1,
