@@ -122,7 +122,7 @@ const SettingsScreen = ({ navigation }) => {
         <Button
           mode="outlined"
           icon="account-edit-outline"
-          onPress={() => handleNavigation("ProfileEdit", "Update Profile")}
+          onPress={() => navigation.navigate("GarageProfile")}
           labelStyle={{ color: PRIMARY_COLOR }}
           style={styles.manageAccountButton}
         >

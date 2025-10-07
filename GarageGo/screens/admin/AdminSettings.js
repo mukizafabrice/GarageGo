@@ -161,7 +161,7 @@ const SettingsScreen = ({ navigation }) => {
         titleStyle={styles.sectionTitleStyle}
       >
         {/* Change Password */}
-        <List.Item
+        {/* <List.Item
           title="Change Password"
           description="Update your password securely"
           left={(props) => (
@@ -170,7 +170,7 @@ const SettingsScreen = ({ navigation }) => {
           right={(props) => <List.Icon {...props} icon="chevron-right" />}
           onPress={() => navigation.navigate("ChangePassword")}
           style={styles.listItem}
-        />
+        /> */}
 
         {/* Privacy Policy */}
         <List.Item

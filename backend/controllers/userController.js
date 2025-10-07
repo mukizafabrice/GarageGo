@@ -42,66 +42,62 @@ export const registerAdmin = async (req, res) => {
 // @route   POST /api/admin/login
 // @access  Public
 export const loginAdmin = async (req, res) => {
-    try {
-        // We accept fcmToken and garageId, but only use them for specific roles.
-        const { email, password, fcmToken, garageId } = req.body; 
+  try {
+    // We accept fcmToken and garageId, but only use them for specific roles.
+    const { email, password, fcmToken, garageId } = req.body;
 
-        // 1. Authenticate User (MANDATORY FOR ALL ROLES)
-        const user = await User.findOne({ email });
-        if (!user) return res.status(400).json({ message: "Invalid credentials" });
+    // 1. Authenticate User (MANDATORY FOR ALL ROLES)
+    const user = await User.findOne({ email });
+    if (!user) return res.status(400).json({ message: "Invalid credentials" });
 
-        const isMatch = await bcrypt.compare(password, user.password);
-        if (!isMatch)
-            return res.status(400).json({ message: "Invalid credentials" });
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch)
+      return res.status(400).json({ message: "Invalid credentials" });
 
-        // --- 2. Token Registration and Authorization Check (FOR GARAGE STAFF/OWNERS ONLY) ---
-        const isGarageStaffOrOwner = user.role === 'garageOwner' || user.role === 'user';
-        
-        // This entire block is safely skipped for 'admin' and other non-garage roles.
-        if (isGarageStaffOrOwner && fcmToken && garageId) {
-            
-            // Find the Garage document and verify the user (staff or owner) is associated with it.
-            const garage = await Garage.findOne({ 
-                _id: garageId, 
-                userId: user._id // Ensures the user's ID is in the Garage's 'userId' array
-            });
+    // --- 2. Token Registration and Authorization Check (FOR GARAGE STAFF/OWNERS ONLY) ---
+    const isGarageStaffOrOwner =
+      user.role === "garageOwner" || user.role === "user";
 
-            if (!garage) {
-                // This means the garageId is invalid OR the user is not associated with that garage.
-                return res.status(401).json({ 
-                    message: "Authorization failed: Garage ID is incorrect or user is not a registered staff/owner of this garage." 
-                });
-            }
+    // This entire block is safely skipped for 'admin' and other non-garage roles.
+    if (isGarageStaffOrOwner && fcmToken && garageId) {
+      // Find the Garage document and verify the user (staff or owner) is associated with it.
+      const garage = await Garage.findOne({
+        _id: garageId,
+        userId: user._id, // Ensures the user's ID is in the Garage's 'userId' array
+      });
 
-            // 3. Register the FCM Token to the Garage
-            // Field name is kept as 'fcmToken' (singular) to match the existing schema.
-            await Garage.updateOne(
-                { _id: garageId }, 
-                { $addToSet: { fcmToken: fcmToken } } // Add token atomically without duplicates
-            );
-        }
-        // --- END TOKEN LOGIC ---
-
-        // 4. Generate and Return JWT (MANDATORY FOR ALL ROLES)
-        const token = jwt.sign(
-            { id: user._id, role: user.role },
-            process.env.JWT_SECRET,
-            { expiresIn: "30d" }
-        );
-
-        res.json({
-            _id: user._id,
-            name: user.name,
-            email: user.email,
-            role: user.role,
-            token,
+      if (!garage) {
+        // This means the garageId is invalid OR the user is not associated with that garage.
+        return res.status(401).json({
+          message:
+            "Authorization failed: Garage ID is incorrect or user is not a registered staff/owner of this garage.",
         });
-    } catch (error) {
-        console.error("Login Error:", error);
-        res.status(500).json({ message: error.message });
-    }
-};
+      }
 
+      await Garage.updateOne(
+        { _id: garageId },
+        { $addToSet: { fcmToken: fcmToken } } // Add token atomically without duplicates
+      );
+    }
+
+    // 4. Generate and Return JWT (MANDATORY FOR ALL ROLES)
+    const token = jwt.sign(
+      { id: user._id, role: user.role },
+      process.env.JWT_SECRET
+    );
+
+    res.json({
+      _id: user._id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      token,
+    });
+  } catch (error) {
+    console.error("Login Error:", error);
+    res.status(500).json({ message: error.message });
+  }
+};
 
 export const getUsers = async (req, res) => {
   try {

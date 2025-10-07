@@ -175,7 +175,7 @@ export const findNearestGarage = async (req, res) => {
       }
     }
 
-    // --- NEW LOGIC: Filter valid push tokens from the array ---
+    // --- LOGIC: Filter valid push tokens from the array ---
     const validTokens = nearestGarage?.fcmToken
       ? nearestGarage.fcmToken.filter((token) => Expo.isExpoPushToken(token))
       : [];
@@ -227,8 +227,38 @@ export const findNearestGarage = async (req, res) => {
 
     try {
       // Send the notifications using the Expo SDK
-      // Send multiple messages at once
       let ticketChunks = await expo.sendPushNotificationsAsync(messages);
+
+      // --- NEW LOGIC: STALE TOKEN CLEANUP ---
+      const tokensToRemove = [];
+      ticketChunks.forEach((ticket, index) => {
+        // Check for permanent failures, specifically 'DeviceNotRegistered'
+        if (
+          ticket.status === "error" &&
+          ticket.details &&
+          (ticket.details.error === "DeviceNotRegistered" ||
+            ticket.details.error === "InvalidCredentials") // Include InvalidCredentials for safety
+        ) {
+          // The token is permanently invalid. Find the corresponding token from the messages array.
+          const invalidToken = messages[index].to;
+          tokensToRemove.push(invalidToken);
+          console.warn(
+            `⚠️ Removing stale token for ${nearestGarage.name}: ${invalidToken}`
+          );
+        }
+      });
+
+      if (tokensToRemove.length > 0) {
+        // Use MongoDB's $pullAll operator to efficiently remove all stale tokens
+        await Garage.updateOne(
+          { _id: nearestGarage._id },
+          { $pullAll: { fcmToken: tokensToRemove } }
+        );
+        console.log(
+          `🧹 Cleaned up ${tokensToRemove.length} stale FCM tokens for ${nearestGarage.name}.`
+        );
+      }
+      // --- END STALE TOKEN CLEANUP ---
 
       // LOG: SENT_SUCCESS
       const notificationLog = new Notification({

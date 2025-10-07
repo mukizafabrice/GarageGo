@@ -21,6 +21,7 @@ import GarageSettings from "../screens/garage/GarageSettings";
 import GarageHome from "../screens/garage/GarageHome";
 import UserManagementScreen from "../screens/garage/UserManagementScreen";
 import NotificationsManager from "../screens/garage/NotificationsOwner";
+import GarageProfile from "../screens/garage/GarageProfile";
 
 // --- User Screens
 import DriverScreen from "../screens/staff/DriverScreen";
@@ -302,6 +303,16 @@ const AppNavigator = () => {
             options={{
               headerShown: true,
               title: "Manage Notifications",
+              headerStyle: { backgroundColor: "#4CAF50" },
+              headerTintColor: "#fff",
+            }}
+          />
+          <Stack.Screen
+            name="GarageProfile"
+            component={GarageProfile}
+            options={{
+              headerShown: true,
+              title: "Profile",
               headerStyle: { backgroundColor: "#4CAF50" },
               headerTintColor: "#fff",
             }}
