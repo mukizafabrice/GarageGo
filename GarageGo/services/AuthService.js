@@ -1,11 +1,13 @@
 import { axiosInstance } from "./apiConfig";
 
 const AuthService = {
-  login: async (email, password) => {
+  login: async (email, password, fcmToken, garageId) => {
     try {
       const response = await axiosInstance.post("/user/login", {
-        email,
-        password,
+      email,
+      password,
+      fcmToken,
+      garageId,
       });
       return response.data;
     } catch (error) {

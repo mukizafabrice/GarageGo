@@ -17,7 +17,7 @@ const garageSchema = new mongoose.Schema(
       },
     ],
 
-    fcmToken: { type: String },
+    fcmToken: { type: [String], default: [] },
   },
   { timestamps: true }
 );

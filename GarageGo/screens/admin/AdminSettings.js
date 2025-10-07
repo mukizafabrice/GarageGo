@@ -214,7 +214,7 @@ const SettingsScreen = ({ navigation }) => {
             />
           )}
           right={(props) => <List.Icon {...props} icon="chevron-right" />}
-          onPress={() => navigation.navigate("NotificationsManager")}
+          onPress={() => navigation.navigate("NotificationAdmin")}
           style={styles.listItem}
         />
       </List.Section>

@@ -28,14 +28,17 @@ export const AuthProvider = ({ children }) => {
     initializeAuth();
   }, []);
 
-  const login = async (email, password) => {
+  /**
+   * FIX: This function now accepts the final 'response' object (which contains token and user data)
+   * directly from the Login screen, bypassing the need for a second AuthService network call.
+   */
+  const login = async (response) => {
     setIsLoading(true);
     try {
-      const response = await AuthService.login(email, password);
-
-      // Validate backend response
+      // Validate the passed response object
       if (!response || !response.token || !response._id) {
-        throw new Error("Invalid login credentials or server response");
+        // This is the source of the persistent "[Error: Invalid credentials]" log
+        throw new Error("Invalid credentials or missing required user data.");
       }
 
       const { token, ...userData } = response;
@@ -47,11 +50,16 @@ export const AuthProvider = ({ children }) => {
       await AsyncStorage.setItem("token", token);
       await AsyncStorage.setItem("user", JSON.stringify(userData));
 
+      console.log(
+        "[AuthContext] Session successfully set for user:",
+        userData._id
+      );
+
       return { success: true };
     } catch (error) {
       console.error("Login error:", error);
-      Alert.alert("Login Failed", error.message || "An error occurred");
-      return { success: false, error: error.message };
+      // Removed the original Alert.alert to let the Login screen handle true errors
+      throw error; // Re-throw so the Login screen's try/catch can handle it
     } finally {
       setIsLoading(false);
     }
@@ -92,3 +100,4 @@ export const AuthProvider = ({ children }) => {
 
 // Custom hook for easy access
 export const useAuth = () => useContext(AuthContext);
+ 

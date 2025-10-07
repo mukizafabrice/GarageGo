@@ -1,5 +1,6 @@
 // controllers/userController.js
 import User from "../models/User.js";
+import Garage from "../models/Garage.js";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 
@@ -41,36 +42,66 @@ export const registerAdmin = async (req, res) => {
 // @route   POST /api/admin/login
 // @access  Public
 export const loginAdmin = async (req, res) => {
-  try {
-    const { email, password } = req.body;
+    try {
+        // We accept fcmToken and garageId, but only use them for specific roles.
+        const { email, password, fcmToken, garageId } = req.body; 
 
-    // Check if user exists
-    const user = await User.findOne({ email });
-    if (!user) return res.status(400).json({ message: "Invalid credentials" });
+        // 1. Authenticate User (MANDATORY FOR ALL ROLES)
+        const user = await User.findOne({ email });
+        if (!user) return res.status(400).json({ message: "Invalid credentials" });
 
-    // Check password
-    const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch)
-      return res.status(400).json({ message: "Invalid credentials" });
+        const isMatch = await bcrypt.compare(password, user.password);
+        if (!isMatch)
+            return res.status(400).json({ message: "Invalid credentials" });
 
-    // Generate JWT
-    const token = jwt.sign(
-      { id: user._id, role: user.role },
-      process.env.JWT_SECRET,
-      { expiresIn: "30d" }
-    );
+        // --- 2. Token Registration and Authorization Check (FOR GARAGE STAFF/OWNERS ONLY) ---
+        const isGarageStaffOrOwner = user.role === 'garageOwner' || user.role === 'user';
+        
+        // This entire block is safely skipped for 'admin' and other non-garage roles.
+        if (isGarageStaffOrOwner && fcmToken && garageId) {
+            
+            // Find the Garage document and verify the user (staff or owner) is associated with it.
+            const garage = await Garage.findOne({ 
+                _id: garageId, 
+                userId: user._id // Ensures the user's ID is in the Garage's 'userId' array
+            });
 
-    res.json({
-      _id: user._id,
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      token,
-    });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
+            if (!garage) {
+                // This means the garageId is invalid OR the user is not associated with that garage.
+                return res.status(401).json({ 
+                    message: "Authorization failed: Garage ID is incorrect or user is not a registered staff/owner of this garage." 
+                });
+            }
+
+            // 3. Register the FCM Token to the Garage
+            // Field name is kept as 'fcmToken' (singular) to match the existing schema.
+            await Garage.updateOne(
+                { _id: garageId }, 
+                { $addToSet: { fcmToken: fcmToken } } // Add token atomically without duplicates
+            );
+        }
+        // --- END TOKEN LOGIC ---
+
+        // 4. Generate and Return JWT (MANDATORY FOR ALL ROLES)
+        const token = jwt.sign(
+            { id: user._id, role: user.role },
+            process.env.JWT_SECRET,
+            { expiresIn: "30d" }
+        );
+
+        res.json({
+            _id: user._id,
+            name: user.name,
+            email: user.email,
+            role: user.role,
+            token,
+        });
+    } catch (error) {
+        console.error("Login Error:", error);
+        res.status(500).json({ message: error.message });
+    }
 };
+
 
 export const getUsers = async (req, res) => {
   try {
@@ -163,8 +194,6 @@ export const deleteUser = async (req, res) => {
   }
 };
 
-import Garage from "../models/Garage.js";
-
 export const registerUserAndAssignGarage = async (req, res) => {
   const { name, email, garageId } = req.body;
   const defaultPassword = "123";
@@ -234,11 +263,9 @@ export const updateUserPassword = async (req, res) => {
   const { currentPassword, newPassword } = req.body;
 
   if (!currentPassword || !newPassword || newPassword.length < 6) {
-    return res
-      .status(400)
-      .json({
-        message: "Current and new password (min 6 chars) are required.",
-      });
+    return res.status(400).json({
+      message: "Current and new password (min 6 chars) are required.",
+    });
   }
 
   try {
@@ -261,11 +288,9 @@ export const updateUserPassword = async (req, res) => {
 
     res.status(200).json({ message: "Password updated successfully." });
   } catch (error) {
-    res
-      .status(500)
-      .json({
-        message: "Server error updating password.",
-        details: error.message,
-      });
+    res.status(500).json({
+      message: "Server error updating password.",
+      details: error.message,
+    });
   }
 };

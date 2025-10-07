@@ -14,17 +14,16 @@ import {
   Button,
   Card,
   Chip,
-  // Alert was removed from react-native-paper import
 } from "react-native-paper";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
-// UPDATED: Assuming these are implemented and return Promises for CRUD operations
+
 import {
-  getNotificationsByGarageId,
-  deleteNotification, // Added for single item delete
-  deleteNotificationsByGarageId, // Added for bulk delete
+  getAllNotifications, // Used for fetching all
+  deleteNotification,
+  deleteAllNotifications, // Used for clearing all
 } from "../../services/notificationService";
-import { getGarageByUserId } from "../../services/garageService";
-import { useAuth } from "../../context/AuthContext";
+// Removed: import { getGarageByUserId } from "../../services/garageService";
+import { useAuth } from "../../context/AuthContext"; // Keeping useAuth for context but removing userId dependency
 
 const PRIMARY_COLOR = "#4CAF50";
 
@@ -204,25 +203,18 @@ const NotificationCard = ({ notif, onClear, colors, PRIMARY_COLOR }) => {
 // --- NotificationsManager Component ---
 const NotificationsManager = ({ navigation }) => {
   const { colors } = useTheme();
-  const { user } = useAuth();
-  const userId = user?._id;
+  // const { user } = useAuth(); // Keeping useAuth but removing user dependency
 
   const [notifications, setNotifications] = useState([]);
-  const [garageId, setGarageId] = useState(null);
+  // Removed: const [garageId, setGarageId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
 
   // --- Core Data Fetching Function (Memoized) ---
-  const fetchNotifications = useCallback(async (id) => {
-    if (!id) {
-      setLoading(false);
-      setRefreshing(false);
-      return;
-    }
-
+  const fetchNotifications = useCallback(async () => {
     try {
-      const notifResponse = await getNotificationsByGarageId(id);
+      const notifResponse = await getAllNotifications(); // Fetches all notifications
       const sortedNotifications = (notifResponse.data || []).sort(
         (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
       );
@@ -240,46 +232,20 @@ const NotificationsManager = ({ navigation }) => {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, []); // Dependency array is empty as it fetches all notifications globally
 
-  // --- Initial/Garage ID Fetch Effect ---
+  // --- Initial Data Fetch Effect ---
   useEffect(() => {
-    const fetchGarageIdAndNotifications = async () => {
-      if (!userId) {
-        setLoading(false);
-        return;
-      }
-
-      setLoading(true);
-      try {
-        const garageResponse = await getGarageByUserId(userId);
-        const id = garageResponse.data?._id;
-        setGarageId(id);
-
-        if (id) {
-          await fetchNotifications(id);
-        } else {
-          setNotifications([]);
-          setLoading(false);
-        }
-      } catch (e) {
-        console.error("Fetch Garage ID Error:", e);
-        Alert.alert("Error", "Failed to find garage for user.");
-        setError("Failed to find garage for user.");
-        setLoading(false);
-      }
-    };
-
-    fetchGarageIdAndNotifications();
-  }, [userId, fetchNotifications]);
+    fetchNotifications();
+  }, [fetchNotifications]);
 
   // --- Refresh Logic ---
   const onRefresh = () => {
     setRefreshing(true);
-    fetchNotifications(garageId);
+    fetchNotifications(); // Calls the function without any ID dependency
   };
 
-  // UPDATED: Function to clear a single notification (client-side and API)
+  // Function to clear a single notification (with confirmation)
   const handleClear = (id) => {
     Alert.alert(
       "Confirm Deletion", // Title
@@ -288,7 +254,7 @@ const NotificationsManager = ({ navigation }) => {
         {
           text: "Cancel",
           style: "cancel",
-          onPress: () => console.log("Deletion cancelled"), // Optional: log action
+          onPress: () => console.log("Deletion cancelled"),
         },
         {
           text: "Clear", // Destructive option
@@ -317,34 +283,44 @@ const NotificationsManager = ({ navigation }) => {
     );
   };
 
-  // UPDATED: Function to clear ALL notifications (client-side and API)
-  const handleClearAllNotifications = async () => {
-    if (!garageId) {
-      Alert.alert(
-        "Error",
-        "Cannot clear all notifications: Garage ID not found."
-      );
-      return;
-    }
+  // UPDATED: Function to clear ALL notifications (with confirmation)
+  const handleClearAllNotifications = () => {
+    Alert.alert(
+      "Confirm Clear All",
+      "Are you absolutely sure you want to delete ALL notifications? This action cannot be undone.",
+      [
+        {
+          text: "Cancel",
+          style: "cancel",
+          onPress: () => console.log("Clear All cancelled"),
+        },
+        {
+          text: "Delete All",
+          style: "destructive",
+          onPress: async () => {
+            setLoading(true); // Show loading overlay while deleting
 
-    setLoading(true); // Show loading overlay while deleting
+            try {
+              // API call to persist the delete ALL action
+              await deleteAllNotifications();
 
-    try {
-      // API call to persist the delete ALL action
-      await deleteNotificationsByGarageId(garageId);
-
-      // Update state on success
-      setNotifications([]);
-      Alert.alert("Success", "All notifications cleared successfully.");
-    } catch (e) {
-      console.error("Clear All Notifications Error:", e);
-      Alert.alert(
-        "Error",
-        "Failed to clear all notifications. Please try again."
-      );
-    } finally {
-      setLoading(false); // Hide loading overlay
-    }
+              // Update state on success
+              setNotifications([]);
+              Alert.alert("Success", "All notifications cleared successfully.");
+            } catch (e) {
+              console.error("Clear All Notifications Error:", e);
+              Alert.alert(
+                "Error",
+                "Failed to clear all notifications. Please try again."
+              );
+            } finally {
+              setLoading(false); // Hide loading overlay
+            }
+          },
+        },
+      ],
+      { cancelable: true }
+    );
   };
 
   return (

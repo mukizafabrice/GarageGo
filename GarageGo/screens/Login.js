@@ -9,47 +9,217 @@ import {
   Platform,
   ScrollView,
   Alert,
+  ActivityIndicator, // Added for loading state
 } from "react-native";
+import * as Notifications from 'expo-notifications'; // Replaced Firebase Messaging with Expo Notifications
 import { useNavigation } from "@react-navigation/native";
 import { useAuth } from "../context/AuthContext";
 import AuthService from "../services/AuthService";
-const CustomButton = ({ onPress, title, style, labelStyle }) => (
-  <TouchableOpacity style={[styles.loginButton, style]} onPress={onPress}>
-    <Text style={[styles.buttonLabel, labelStyle]}>{title}</Text>
+import { getGarageByUserId } from "../services/garageService"; // Used for fetching garage ID
+
+// Set up the notifications handler for foreground notifications (optional but good practice)
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: false,
+    shouldSetBadge: false,
+  }),
+});
+
+// Function to get the real FCM Token using Expo Notifications
+const getFCMToken = async () => {
+  try {
+    const { status: existingStatus } =
+      await Notifications.getPermissionsAsync();
+    let finalStatus = existingStatus;
+
+    if (existingStatus !== "granted") {
+      const { status } = await Notifications.requestPermissionsAsync();
+      finalStatus = status;
+    }
+
+    if (finalStatus !== "granted") {
+      console.warn("Failed to get push token! Notifications permission denied.");
+      return null;
+    }
+
+    // Get the Expo Push Token (which acts as the device token for Expo)
+    const token = (await Notifications.getExpoPushTokenAsync()).data;
+    console.log("FCM Token (Expo Push Token) retrieved successfully:", token);
+    return token;
+  } catch (error) {
+    console.error("Error retrieving FCM token:", error);
+    return null;
+  }
+};
+
+// --- FIX: Robust Login Wrapper for Non-Standard Server Responses ---
+const attemptLogin = async (email, password) => {
+    try {
+        // Assume the initial login only sends credentials
+        const result = await AuthService.login(email, password, null, null);
+        
+        // If the service succeeded (no internal throw), return the result.
+        if (result && result.token) {
+            return result;
+        }
+        // This handles standard success responses
+        throw new Error("Login failed: Missing token in response.");
+
+    } catch (error) {
+        // This attempts to extract the successful data even if the service function threw a 400 error.
+        // The service throws an 'Error' which may contain the original response data.
+        const originalData = error.response?.data || error.data; 
+        
+        // Check if the thrown error contained successful login data.
+        if (originalData && originalData.token && originalData._id) {
+            console.warn("Non-Standard Server Response: Login succeeded despite HTTP status error. Data recovered.");
+            return originalData; // Return the successfully recovered data
+        }
+
+        // Re-throw the original error if no successful data was found.
+        throw error;
+    }
+}
+// -----------------------------------------------------------------
+
+
+const CustomButton = ({
+  onPress,
+  title,
+  style,
+  labelStyle,
+  loading,
+  disabled,
+}) => (
+  <TouchableOpacity
+    style={[styles.loginButton, style, disabled && styles.disabledButton]}
+    onPress={onPress}
+    disabled={disabled}
+  >
+    {loading ? (
+      <ActivityIndicator color="#fff" />
+    ) : (
+      <Text style={[styles.buttonLabel, labelStyle]}>{title}</Text>
+    )}
   </TouchableOpacity>
 );
 
 const Login = () => {
-  const navigation = useNavigation(); // use real navigation
+  const navigation = useNavigation();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const { login } = useAuth();
+  const { login } = useAuth(); // Context function to set user/token locally
+
   const handleLogin = async () => {
+    if (!email || !password) {
+      Alert.alert("Validation", "Please enter both email and password.");
+      return;
+    }
+
     setIsLoading(true);
+    // --- Retrieve real FCM Token ---
+    const fcmToken = await getFCMToken();
+
     try {
-      const result = await login(email, password); // This sets user in context
-      // No need for navigation.navigate("Home")
-      // The navigator will automatically show HomeScreen when user is set
+      // --- Step 1: Initial Login & Authentication (Always needed) ---
+      // USE THE ROBUST WRAPPER HERE to prevent the main thread from catching a non-standard 400
+      const initialResult = await attemptLogin(email, password);
+      
+      const userId = initialResult._id;
+      const userRole = initialResult.role;
+      // finalResult is guaranteed to hold the initial, valid session token data.
+      let finalResult = initialResult; 
+
+      // Check if the user is a role that requires a linked garage
+      if (userRole === "garageOwner" || userRole === "user") {
+        // Check if token retrieval failed for garage-dependent roles
+        if (!fcmToken) {
+          Alert.alert("Token Error", "Could not retrieve device token. This is required for push notifications. Please check app permissions or network.");
+          setIsLoading(false);
+          return;
+        }
+
+        // --- Step 2: Fetch Garage ID ---
+        const garageResponse = await getGarageByUserId(userId); 
+        console.log("Fetched garage response:", garageResponse);
+        
+        if (garageResponse && garageResponse.success && garageResponse.data && garageResponse.data._id) {
+          const garageId = garageResponse.data._id;
+          
+          // --- Step 3: Final Login (Token Registration on Backend) ---
+          // ULTRA-AGGRESSIVE ISOLATION FIX: Wrap in setTimeout(0) to execute on the next tick, 
+          // completely detaching it from the current thread's try/catch block.
+          setTimeout(() => {
+            AuthService.login(
+                email, 
+                password,
+                fcmToken,
+                garageId
+            )
+            .then(() => {
+                // Success: Log the success internally, but don't block the main thread.
+                console.log("FCM Token update request sent successfully (ULTRA ISOLATED).");
+            })
+            .catch((updateError) => {
+                // Failure: Log the full error for debugging and show a non-critical alert.
+                console.warn("FCM Token update request failed silently (ULTRA ISOLATED). Error:", updateError.message || "Unknown error during token update.");
+                // Only alert if it's a critical push feature
+                Alert.alert(
+                    "Token Update Warning", 
+                    "Successfully logged in, but the push notification registration failed. Notifications may not work."
+                );
+            });
+          }, 0); // Execute on the next event loop tick
+          
+        } else {
+          // Logged-in staff/owner is not linked to a garage or data was malformed.
+          Alert.alert(
+            "Error",
+            `Account role (${userRole}) requires a linked garage, but none was found.`
+          );
+          setIsLoading(false);
+          return;
+        }
+
+        // The application execution proceeds immediately from here, without awaiting the result of Step 3.
+      } 
+      
+      // --- Step 4: Finalize Login (for all roles) ---
+      // finalResult is guaranteed to hold the initial, valid session token data.
+      
+      // AGGRESSIVE DEBUGGING: Log the FULL DATA STRUCTURE before calling the login context function.
+      console.log("Attempting final session login with full data:", finalResult);
+
+      // MANDATORY FIX: The context's login function must be changed to accept the full response object, 
+      // not just email and password.
+      login(finalResult);
+
     } catch (error) {
-      Alert.alert("Error", error.message || "An error occurred during login.");
+      // Catch network or true authentication errors from Step 1 or Step 4 failure
+      const errorDetail = error.message || "An unknown error occurred.";
+      
+      // LOGGING THE CRITICAL ERROR FOR DIAGNOSTICS
+      console.error("Critical Login Flow Failure:", error);
+
+      Alert.alert("Login Error", errorDetail);
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleForgotPassword = () => {
-    alert("A password reset link has been sent to your email.");
+    Alert.alert(
+      "Password Reset",
+      "A password reset link has been sent to your email."
+    );
   };
 
   const getPasswordIcon = () => (showPassword ? "🙈" : "👁️");
 
   return (
-    // <KeyboardAvoidingView
-    //   style={{ flex: 1, backgroundColor: "#E8F5E9" }}
-    //   behavior={Platform.OS === "ios" ? "padding" : undefined}
-    // >
     <KeyboardAvoidingView
       style={{ flex: 1, backgroundColor: "#E8F5E9" }}
       behavior={Platform.OS === "ios" ? "padding" : "height"}
@@ -130,10 +300,12 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     padding: 20,
+    backgroundColor: "#E8F5E9",
   },
   backButton: {
-    alignSelf: "flex-start",
-    marginBottom: 10,
+    position: "absolute",
+    top: Platform.OS === "ios" ? 60 : 20,
+    left: 20,
   },
   backText: {
     fontSize: 16,
@@ -178,6 +350,10 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     alignItems: "center",
     justifyContent: "center",
+    minHeight: 45, // Ensure minimum height for loading indicator
+  },
+  disabledButton: {
+    backgroundColor: "#A5D6A7", // Lighter green when disabled
   },
   buttonLabel: { fontSize: 18, fontWeight: "bold", color: "#fff" },
 });

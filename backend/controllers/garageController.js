@@ -162,6 +162,7 @@ export const findNearestGarage = async (req, res) => {
 
     // Find the nearest garage
     for (const garage of allGarages) {
+      // Assuming calculateDistance is defined elsewhere
       const distance = calculateDistance(
         driverLat,
         driverLng,
@@ -174,15 +175,20 @@ export const findNearestGarage = async (req, res) => {
       }
     }
 
-    // Check for nearest garage and a valid push token
-    if (
-      !nearestGarage ||
-      !nearestGarage.fcmToken ||
-      !Expo.isExpoPushToken(nearestGarage.fcmToken)
-    ) {
-      const tokenStatus = nearestGarage?.fcmToken
-        ? "Invalid Token"
-        : "No Token";
+    // --- NEW LOGIC: Filter valid push tokens from the array ---
+    const validTokens = nearestGarage?.fcmToken
+      ? nearestGarage.fcmToken.filter((token) => Expo.isExpoPushToken(token))
+      : [];
+
+    console.log(
+      `Found ${validTokens.length} valid tokens for ${nearestGarage?.name}`
+    );
+
+    // Check if a nearest garage was found and if it has any valid push tokens
+    if (!nearestGarage || validTokens.length === 0) {
+      const tokenStatus =
+        nearestGarage?.fcmToken?.length > 0 ? "Invalid Token(s)" : "No Token";
+
       console.log(
         `No nearest garage with a valid FCM token was found. Status: ${tokenStatus}`
       );
@@ -192,22 +198,22 @@ export const findNearestGarage = async (req, res) => {
         driverName: name,
         driverPhoneNumber: phoneNumber,
         driverLocation: { type: "Point", coordinates: [driverLng, driverLat] },
-        nearestGarage: { garageId: nearestGarage._id },
+        nearestGarage: nearestGarage ? { garageId: nearestGarage._id } : null,
         notificationStatus: "INVALID_TOKEN",
       });
       await notificationLog.save();
 
       return res.json({
         success: false,
-        message: `No nearest garage with a valid push token was found.`,
+        message: `Nearest garage found, but it has no valid push tokens registered.`,
       });
     }
 
     console.log(`✅ Found nearest garage: ${nearestGarage.name}`);
 
-    // Create the notification message object
-    const message = {
-      to: nearestGarage.fcmToken,
+    // Create the notification messages for all valid tokens
+    const messages = validTokens.map((token) => ({
+      to: token, // Send to the individual valid token
       sound: "default",
       title: `🚨 NEW REQUEST: ${name}`,
       body: `Driver needs help! Contact: ${phoneNumber}.Tap for location details.`,
@@ -217,11 +223,12 @@ export const findNearestGarage = async (req, res) => {
         driverLat: driverLat.toString(),
         driverLng: driverLng.toString(),
       },
-    };
+    }));
 
     try {
-      // Send the notification using the Expo SDK
-      let ticketChunk = await expo.sendPushNotificationsAsync([message]);
+      // Send the notifications using the Expo SDK
+      // Send multiple messages at once
+      let ticketChunks = await expo.sendPushNotificationsAsync(messages);
 
       // LOG: SENT_SUCCESS
       const notificationLog = new Notification({
@@ -230,13 +237,13 @@ export const findNearestGarage = async (req, res) => {
         driverLocation: { type: "Point", coordinates: [driverLng, driverLat] },
         nearestGarage: { garageId: nearestGarage._id },
         notificationStatus: "SENT_SUCCESS",
-        expoTicket: ticketChunk, // Store the successful ticket response
+        expoTicket: ticketChunks, // Store the successful ticket response (now an array)
       });
       await notificationLog.save();
 
       console.log(
-        `✅ Notification sent to nearest garage: ${nearestGarage.name}`,
-        ticketChunk
+        `✅ Notification sent to nearest garage: ${nearestGarage.name} across ${validTokens.length} tokens.`,
+        ticketChunks
       );
 
       // Send the successful response back to the client
@@ -342,3 +349,5 @@ export const updateGarageToken = async (garageId, fcmToken) => {
   if (!garage) throw new Error("Garage not found");
   return garage;
 };
+
+// ExponentPushToken[aD-aGvBosat6ofycBpZ50d]

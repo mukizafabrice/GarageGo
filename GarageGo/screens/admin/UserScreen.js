@@ -1,4 +1,3 @@
-// screens/admin/UserScreen.js
 import React, { useState, useEffect } from "react";
 import { View, StyleSheet, FlatList, Alert } from "react-native";
 import {
@@ -21,6 +20,8 @@ import {
   updateUser,
 } from "../../services/AuthService";
 
+const PRIMARY_COLOR = "#4CAF50";
+
 const UserScreen = () => {
   const [users, setUsers] = useState([]);
   const [filteredUsers, setFilteredUsers] = useState([]);
@@ -29,6 +30,18 @@ const UserScreen = () => {
   const [expandedIndex, setExpandedIndex] = useState(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
+  // --- Filtering States ---
+  const [filterRole, setFilterRole] = useState("all"); // 'all' by default
+  const [filterOpen, setFilterOpen] = useState(false);
+
+  // UPDATED: Added 'garageOwner' to filter options
+  const filterOptions = [
+    { label: "All Roles", value: "all" },
+    { label: "Admin", value: "admin" },
+    { label: "User", value: "user" },
+    { label: "Garage Owner", value: "garageOwner" },
+  ];
+
   // Modal states
   const [modalVisible, setModalVisible] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
@@ -36,31 +49,46 @@ const UserScreen = () => {
   const [email, setEmail] = useState("");
   const [role, setRole] = useState("user");
 
-  // DropDownPicker states
+  // DropDownPicker states for MODAL
   const [open, setOpen] = useState(false);
+
+  // UPDATED: Added 'garageOwner' to modal dropdown items
   const [items, setItems] = useState([
     { label: "Admin", value: "admin" },
     { label: "User", value: "user" },
+    { label: "Garage Owner", value: "garageOwner" },
   ]);
 
   useEffect(() => {
     getUsers();
   }, []);
 
+  // UPDATED FILTERING LOGIC
   useEffect(() => {
     const lowerCaseQuery = searchQuery.toLowerCase();
-    const filtered = users.filter((user) =>
-      user.name.toLowerCase().includes(lowerCaseQuery)
-    );
+    const filtered = users.filter((user) => {
+      const matchesSearch =
+        user.name.toLowerCase().includes(lowerCaseQuery) ||
+        user.email.toLowerCase().includes(lowerCaseQuery);
+
+      // Filter by role: 'all' matches everything, otherwise check for exact match
+      const matchesRole = filterRole === "all" || user.role === filterRole;
+
+      return matchesSearch && matchesRole;
+    });
     setFilteredUsers(filtered);
-  }, [searchQuery, users]);
+  }, [searchQuery, users, filterRole]); // Added filterRole dependency
 
   const getUsers = async () => {
     setIsRefreshing(true);
     setLoading(true);
     try {
       const response = await fetchUsers();
-      setUsers(response.data);
+      // Ensure data is sorted by name for better consistency
+      const sortedUsers = response.data.sort((a, b) =>
+        a.name.localeCompare(b.name)
+      );
+      setUsers(sortedUsers);
     } catch (error) {
       Alert.alert("Error", "Failed to fetch users.");
     } finally {
@@ -100,10 +128,12 @@ const UserScreen = () => {
 
     try {
       if (editingUser) {
+        // Ensure role is sent when editing
         await updateUser(editingUser._id, { name, email, role });
         Alert.alert("Success", "User updated successfully!");
       } else {
-        await addUser({ name, email }); // role not needed
+        // Assume backend defaults role when adding a new user if not explicitly sent
+        await addUser({ name, email });
         Alert.alert("Success", "User added successfully!");
       }
       setModalVisible(false);
@@ -144,13 +174,13 @@ const UserScreen = () => {
                 setModalVisible(true);
               }}
               mode="text"
-              textColor="#000000"
+              textColor={PRIMARY_COLOR}
             />
             <Button
               icon="delete"
               onPress={() => handleDelete(item._id)}
               mode="text"
-              textColor="#000000"
+              textColor="red" // Use red for destructive action
             />
             <Button
               icon={expandedIndex === index ? "chevron-up" : "chevron-down"}
@@ -172,9 +202,9 @@ const UserScreen = () => {
             descriptionStyle={styles.listItemDescription}
           />
           <List.Item
-            title="Password"
-            description="******** (default)"
-            left={(props) => <List.Icon {...props} icon="lock" />}
+            title="ID"
+            description={item._id}
+            left={(props) => <List.Icon {...props} icon="identifier" />}
             style={styles.listItem}
             titleStyle={styles.listItemTitle}
             descriptionStyle={styles.listItemDescription}
@@ -190,18 +220,40 @@ const UserScreen = () => {
         <View style={styles.searchContainer}>
           <TextInput
             style={styles.searchInput}
-            label="Search users..."
+            label="Search by name or email..."
             value={searchQuery}
             onChangeText={setSearchQuery}
             mode="outlined"
             left={<TextInput.Icon icon="magnify" />}
+            activeOutlineColor={PRIMARY_COLOR}
           />
+
+          {/* --- New Role Filter Dropdown --- */}
+          {/* zIndex is crucial for the dropdown to render above the FlatList content */}
+          <View style={styles.filterWrapper}>
+            <Text style={styles.filterLabel}>Filter by Role:</Text>
+            <DropDownPicker
+              open={filterOpen}
+              value={filterRole}
+              items={filterOptions}
+              setOpen={setFilterOpen}
+              setValue={setFilterRole}
+              // We must set the list open state back to false when another dropdown opens
+              onOpen={() => setOpen(false)}
+              setItems={() => {}}
+              containerStyle={styles.filterDropdownContainer}
+              placeholder="Filter by Role"
+              style={{ borderColor: PRIMARY_COLOR }}
+              zIndex={3000} // Ensure filter dropdown is always on top
+            />
+          </View>
+          {/* --- End Role Filter Dropdown --- */}
         </View>
 
         {loading ? (
           <ActivityIndicator
             animating={true}
-            color="#4CAF50"
+            color={PRIMARY_COLOR}
             style={styles.loadingIndicator}
             size="large"
           />
@@ -242,6 +294,7 @@ const UserScreen = () => {
               onChangeText={setName}
               mode="outlined"
               style={styles.input}
+              activeOutlineColor={PRIMARY_COLOR}
             />
             <TextInput
               label="Email"
@@ -249,26 +302,29 @@ const UserScreen = () => {
               onChangeText={setEmail}
               mode="outlined"
               style={styles.input}
+              activeOutlineColor={PRIMARY_COLOR}
             />
             {/* Role dropdown only when editing */}
             {editingUser && (
               <DropDownPicker
                 open={open}
                 value={role}
-                items={items}
+                items={items} // Uses the updated items list
                 setOpen={setOpen}
                 setValue={setRole}
+                // We must set the filter open state back to false when this dropdown opens
+                onOpen={() => setFilterOpen(false)}
                 setItems={setItems}
-                containerStyle={{ marginBottom: 12 }}
+                containerStyle={{ marginBottom: 12, zIndex: 1000 }} // Modal zIndex
                 placeholder="Select role"
-                style={{ borderColor: "#4CAF50" }}
+                style={{ borderColor: PRIMARY_COLOR }}
               />
             )}
             <Button
               mode="contained"
               onPress={handleSave}
               style={styles.saveButton}
-              buttonColor="#4CAF50"
+              buttonColor={PRIMARY_COLOR}
             >
               Save
             </Button>
@@ -288,7 +344,7 @@ const styles = StyleSheet.create({
     elevation: 3,
     backgroundColor: "#FFFFFF",
   },
-  cardTitle: { color: "#4CAF50", fontWeight: "bold" },
+  cardTitle: { color: PRIMARY_COLOR, fontWeight: "bold" },
   cardSubtitle: { color: "#000000" },
   cardContent: { paddingTop: 0, paddingBottom: 0 },
   cardActions: {
@@ -297,33 +353,56 @@ const styles = StyleSheet.create({
     paddingRight: 12,
     alignItems: "center",
   },
-  searchContainer: { padding: 12, backgroundColor: "#FFFFFF", elevation: 1 },
+  searchContainer: {
+    padding: 12,
+    backgroundColor: "#FFFFFF",
+    elevation: 1,
+    // Set a high ZIndex on the container to ensure dropdowns work
+    zIndex: 2000,
+  },
   searchInput: { backgroundColor: "#FFFFFF" },
+  // New styles for the filter
+  filterWrapper: {
+    marginTop: 15,
+    zIndex: 1000, // Explicit zIndex for dropdown functionality
+  },
+  filterLabel: {
+    marginBottom: 8,
+    fontSize: 14,
+    color: "#555",
+    fontWeight: "600",
+  },
+  filterDropdownContainer: {
+    height: 50,
+    marginBottom: 5,
+  },
+  // End new styles
   loadingIndicator: { marginTop: 50 },
   fab: {
     position: "absolute",
     margin: 20,
     right: 0,
     bottom: 0,
-    backgroundColor: "#4CAF50",
+    backgroundColor: PRIMARY_COLOR,
   },
   modalContainer: {
     backgroundColor: "white",
     padding: 20,
     margin: 20,
     borderRadius: 10,
+    zIndex: 4000, // Highest zIndex for the modal background
   },
   modalTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: "bold",
     marginBottom: 15,
-    color: "#4CAF50",
+    color: PRIMARY_COLOR,
   },
   input: { marginBottom: 12 },
-  saveButton: { marginTop: 10, borderRadius: 8 },
+  saveButton: { marginTop: 15, borderRadius: 8 },
   listItem: { paddingVertical: 2, minHeight: 35 },
   listItemTitle: { fontWeight: "bold", color: "#000000" },
-  listItemDescription: { color: "#000000" },
+  listItemDescription: { color: "#555" },
 });
 
 export default UserScreen;
