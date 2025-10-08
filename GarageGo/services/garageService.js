@@ -67,7 +67,7 @@ export const findNearestGarage = async (
 // Update a garage
 export const updateGarage = async (id, garageData) => {
   const response = await axiosInstance.put(`/garages/${id}`, garageData);
-  return response.data;
+  return response; // <--- Return the full response object
 };
 
 // Delete a garage

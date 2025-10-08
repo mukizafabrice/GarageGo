@@ -122,7 +122,7 @@ const SettingsScreen = ({ navigation }) => {
         <Button
           mode="outlined"
           icon="account-edit-outline"
-          onPress={() => handleNavigation("ProfileEdit", "Update Profile")}
+          onPress={() => navigation.navigate("StaffProfile")}
           labelStyle={{ color: PRIMARY_COLOR }}
           style={styles.manageAccountButton}
         >
@@ -209,7 +209,7 @@ const SettingsScreen = ({ navigation }) => {
             <List.Icon {...props} icon="lock-reset" color={PRIMARY_COLOR} />
           )}
           right={(props) => <List.Icon {...props} icon="chevron-right" />}
-          onPress={() => handleNavigation("PasswordChange", "Change Password")}
+          onPress={() => navigation.navigate("ChangePassword")}
           style={styles.listItem}
         />
 
@@ -225,7 +225,7 @@ const SettingsScreen = ({ navigation }) => {
             />
           )}
           right={(props) => <List.Icon {...props} icon="chevron-right" />}
-          onPress={() => handleNavigation("PrivacyPolicy", "Privacy Policy")}
+          onPress={() => navigation.navigate("Privacy")}
           style={styles.listItem}
         />
 
@@ -241,23 +241,7 @@ const SettingsScreen = ({ navigation }) => {
             />
           )}
           right={(props) => <List.Icon {...props} icon="chevron-right" />}
-          onPress={() => handleNavigation("Support", "Help & Support")}
-          style={styles.listItem}
-        />
-
-        {/* Manage Users Link */}
-        <List.Item
-          title="Manage Users"
-          description="Add or manage garage users (Owners/Staff)"
-          left={(props) => (
-            <List.Icon
-              {...props}
-              icon="account-multiple-outline" // Icon for multiple users
-              color={PRIMARY_COLOR}
-            />
-          )}
-          right={(props) => <List.Icon {...props} icon="chevron-right" />}
-          onPress={() => navigation.navigate("UserManagement")}
+          onPress={() => navigation.navigate("Help")}
           style={styles.listItem}
         />
       </List.Section>

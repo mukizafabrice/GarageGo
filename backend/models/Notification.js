@@ -43,11 +43,20 @@ const NotificationSchema = new mongoose.Schema(
     notificationStatus: {
       type: String,
       enum: [
+        // Existing initial sending outcome statuses
         "SENT_SUCCESS",
         "NO_GARAGE_FOUND",
         "INVALID_TOKEN",
         "SEND_FAILED",
-        "SERVER_ERROR", // Added for general try/catch errors
+        "SERVER_ERROR",
+
+        // --- NEW Service & Response Statuses ---
+        "SENT_RECEIVED", // Notification received by garage app
+        "GARAGE_ACCEPTED", // Garage agrees to help the driver (equivalent to "works with driver")
+        "GARAGE_DECLINED", // Garage cannot or will not help the driver (equivalent to "don't work with driver vehicle/too busy")
+        "SERVICE_COMPLETED", // The job is done
+        "DRIVER_CANCELED", // Driver canceled the request
+        "EXPIRED", // Request timed out
       ],
       required: true,
     },

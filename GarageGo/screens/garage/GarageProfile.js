@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { View, StyleSheet, ScrollView, Alert, Platform } from "react-native";
 import {
   Text,
@@ -10,99 +10,117 @@ import {
   Chip, // For displaying/editing services
   Divider,
 } from "react-native-paper";
-import { MaterialCommunityIcons as Icon } from "@expo/vector-icons"; // Paper uses MC icons
+import { MaterialCommunityIcons as Icon } from "@expo/vector-icons";
+// Assuming you are using these services
+import { getGarageByUserId, updateGarage } from "../../services/garageService";
+import { useAuth } from "../../context/AuthContext";
 
-// Define Brand Color (Consistent with SettingsScreen)
 const PRIMARY_COLOR = "#4CAF50";
 
-// --- PLACEHOLDER DATA & HOOK ---
-// NOTE: Moving the mock object definition OUTSIDE of the hook/component
-// ensures the object reference is stable and only created once.
-const MOCK_GARAGE_DATA = {
-  _id: "garage_123",
-  name: "Auto-Revive Garage & Service Center",
-  description:
-    "Your trusted local mechanics for all makes and models. We specialize in engine diagnostics and quick oil changes.",
-  latitude: 34.0522, // Los Angeles example
-  longitude: -118.2437,
-  address: "123 Workshop Lane, Downtown, CA 90012",
-  phone: "(555) 555-1234",
-  services: [
-    "Oil Change",
-    "Brake Repair",
-    "Tire Rotation",
-    "Engine Diagnostics",
-  ],
-  userId: ["user_abc", "user_def"], // Staff linked
-};
-
-const useGarageData = () => {
-  // In a real app, you would fetch from an API.
-  // Here, we return the stable object and simulate loading.
-  return { garage: MOCK_GARAGE_DATA, isLoading: false };
-};
-// ---------------------------------
+// Remove the MOCK_GARAGE_DATA and useGarageData hook
 
 const GarageProfileScreen = ({ navigation }) => {
   const { colors } = useTheme();
-  const { garage, isLoading } = useGarageData();
+  const { user } = useAuth();
+  const userId = user?._id;
 
-  // FIX: Initialize editedGarage state only when 'garage' is available and stable.
-  // We use useMemo with the 'garage' dependency to create a stable object for initial state.
-  // Although the object reference from useGarageData is stable now (because it's defined outside),
-  // this pattern is robust for when fetching dynamic data.
-
-  // 1. Initialize with an empty object and a flag
+  // State for the loaded, original garage data (fetched from API)
+  const [garage, setGarage] = useState(null);
+  // State for the data currently being edited (a copy of 'garage')
   const [editedGarage, setEditedGarage] = useState({});
-  const [hasInitialized, setHasInitialized] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
 
-  useEffect(() => {
-    // Only run this initialization logic once when garage is loaded/available.
-    if (garage && !hasInitialized) {
-      // Deep copy the garage object to isolate state changes for editing
-      setEditedGarage({ ...garage });
-      setHasInitialized(true); // Prevent future runs
+  // --- Data Fetching Logic ---
+  const fetchMyGarage = useCallback(async () => {
+    if (!userId) {
+      console.warn("User ID not available. Cannot fetch garage.");
+      setIsLoading(false);
+      return;
     }
-  }, [garage, hasInitialized]); // Still depend on 'garage' and 'hasInitialized'
 
-  // The primary fix in a real-world scenario is ensuring `useGarageData`
-  // returns a stable object, which we did by defining MOCK_GARAGE_DATA outside.
-  // The useEffect/hasInitialized pattern is the robust way to handle dynamic
-  // data that may take time to load (where isLoading is true initially).
+    try {
+      setIsLoading(true);
+      const response = await getGarageByUserId(userId);
 
-  // Memoize handleChange to avoid unnecessary re-renders in deep components (good practice)
+      if (response.data) {
+        // Set the original fetched data
+        setGarage(response.data);
+        // Initialize the edited state with a deep copy of the fetched data
+        setEditedGarage({ ...response.data });
+      } else {
+        // Handle case where garage is not found for the user
+        setGarage(null);
+        Alert.alert(
+          "Error",
+          "Garage profile not found for this user. You may need to create one."
+        );
+      }
+    } catch (error) {
+      console.error("Error fetching garage by user ID:", error);
+      Alert.alert(
+        "Fetch Failed",
+        "Could not load your garage data. Please try again."
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  }, [userId]);
+
+  // Initial data fetch
+  useEffect(() => {
+    fetchMyGarage();
+  }, [fetchMyGarage]); // Depend on fetchMyGarage (which depends on userId)
+
+  // Memoize handleChange for updates to the edited data
   const handleChange = useCallback((key, value) => {
     setEditedGarage((prev) => ({ ...prev, [key]: value }));
   }, []);
 
   // Handle saving changes
-  const handleSave = useCallback(() => {
-    // 1. **Validation**: Check if required fields (name, lat, lon) are present.
+  const handleSave = useCallback(async () => {
+    // 1. **Validation**: Check if required fields are present.
     if (
       !editedGarage.name ||
       !editedGarage.latitude ||
       !editedGarage.longitude
     ) {
       Alert.alert(
-        "Error",
+        "Validation Error",
         "Name, Latitude, and Longitude are required fields."
       );
       return;
     }
 
-    // 2. **API Call**: Send `editedGarage` data to your backend API.
-    console.log("Saving changes:", editedGarage);
+    try {
+      // 2. **API Call**: Send editedGarage data to your backend API.
+      const garageId = editedGarage._id; // Ensure you have the garage ID
+      console.log("garageId:", garageId);
 
-    // Placeholder for actual save logic
-    setTimeout(() => {
-      Alert.alert("Success", "Garage profile updated successfully!");
-      setIsEditing(false);
-    }, 500); // Simulate network delay
+      // Await the actual API update call
+      const updatedResponse = await updateGarage(garageId, editedGarage);
+
+      if (updatedResponse.status === 200) {
+        // Update the original 'garage' state with the new data from the response
+        setGarage(updatedResponse.data);
+        // The editedGarage state is already correct, but we'll reset isEditing
+        setIsEditing(false);
+        Alert.alert("Success", "Garage profile updated successfully!");
+      } else {
+        Alert.alert("Error", "Failed to save changes. Please try again.");
+      }
+    } catch (error) {
+      console.error("Error saving garage data:", error);
+      Alert.alert(
+        "Save Failed",
+        "An error occurred while saving. Check your network connection."
+      );
+    }
   }, [editedGarage]);
 
   const handleCancel = useCallback(() => {
-    // Revert changes and exit editing mode: set editedGarage back to the source data
+    // Revert changes and exit editing mode: set editedGarage back to the stable source data
+    // This relies on 'garage' holding the last *successfully saved* state
     setEditedGarage({ ...garage });
     setIsEditing(false);
   }, [garage]);
@@ -140,8 +158,7 @@ const GarageProfileScreen = ({ navigation }) => {
     });
   }, []);
 
-  if (isLoading || !hasInitialized) {
-    // Check hasInitialized instead of just 'garage'
+  if (isLoading) {
     return (
       <View style={[styles.center, { backgroundColor: colors.background }]}>
         <Text variant="headlineMedium">Loading Garage Data...</Text>
@@ -149,7 +166,29 @@ const GarageProfileScreen = ({ navigation }) => {
     );
   }
 
-  // --- Render Logic ---
+  if (!garage) {
+    return (
+      <View style={[styles.center, { backgroundColor: colors.background }]}>
+        <Text variant="headlineMedium" style={{ marginBottom: 20 }}>
+          No Garage Profile Found
+        </Text>
+        {/* Placeholder for a 'Create New Garage' button */}
+        <Button
+          mode="contained"
+          onPress={() =>
+            Alert.alert(
+              "Feature",
+              "Navigate to a screen to create a new garage profile."
+            )
+          }
+        >
+          Create Profile
+        </Button>
+      </View>
+    );
+  }
+
+  // --- Render Logic (using editedGarage for display) ---
   return (
     <ScrollView
       style={[styles.container, { backgroundColor: colors.background }]}
@@ -433,7 +472,7 @@ const GarageProfileScreen = ({ navigation }) => {
   );
 };
 
-// --- Styles (No changes needed here, copied from original) ---
+// --- Styles (kept original) ---
 const styles = StyleSheet.create({
   container: { flex: 1 },
   contentContainer: { paddingVertical: 20, paddingHorizontal: 15 },

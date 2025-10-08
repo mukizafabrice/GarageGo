@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { View, StyleSheet, ScrollView, Alert, Platform } from "react-native";
+import { View, StyleSheet, ScrollView, Alert } from "react-native";
 import {
   Text,
   TextInput,
@@ -8,91 +8,125 @@ import {
   Card,
   List,
   Divider,
+  ActivityIndicator, // Used for loading states
 } from "react-native-paper";
-// Using MaterialCommunityIcons for consistent mobile icons
 import { MaterialCommunityIcons as Icon } from "@expo/vector-icons";
 
-// Define a consistent brand color (UPDATED to #4CAF50 - Green)
+// Assuming these are implemented and working to call your actual backend
+import { fetchUserById, updateUser } from "../../services/AuthService";
+import { useAuth } from "../../context/AuthContext";
+
 const BRAND_COLOR = "#4CAF50";
 
-// --- MOCK DATA & HOOK (Simulating Backend Interaction) ---
-// Define the mock user object OUTSIDE of the component/hook
-const MOCK_USER_DATA = {
-  _id: "user_abc_123",
-  name: "Jane Doe",
-  email: "jane.doe@example.com",
-  role: "garageOwner",
-  createdAt: "2023-01-15T10:00:00.000Z",
-  updatedAt: "2024-05-01T15:30:00.000Z",
-};
-
-// Custom hook to simulate fetching user data
-const useUserData = () => {
-  const [user, setUser] = useState(null);
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    // Simulate API delay
-    const timer = setTimeout(() => {
-      // Return a stable mock object reference
-      setUser(MOCK_USER_DATA);
-      setIsLoading(false);
-    }, 1000);
-    return () => clearTimeout(timer);
-  }, []);
-
-  return { user, isLoading };
-};
-// ---------------------------------------------------------
-
-// Using App as the main component for single-file structure
-const App = () => {
+const Profile = ({ navigation }) => {
   const { colors } = useTheme();
-  const { user, isLoading } = useUserData();
 
+  // FIX APPLIED HERE (Confirmed):
+  // 1. Get user object (user) and alias it to authUser.
+  // 2. Get the context update function (updateUser) and alias it to setAuthUser.
+  const { user: authUser, updateUser: setAuthUser } = useAuth();
+  const userId = authUser?._id;
+
+  // Local state for the full profile data fetched from the API (Source of Truth)
+  const [myProfile, setMyProfile] = useState(null);
   // State for the editable form data
   const [editedUser, setEditedUser] = useState({});
   const [isEditing, setIsEditing] = useState(false);
-  const [hasInitialized, setHasInitialized] = useState(false);
+  // State for initial screen loading
+  const [isLoading, setIsLoading] = useState(true);
+  // State for button saving
+  const [isSaving, setIsSaving] = useState(false);
 
-  // 1. Initialize editedUser state only once when the data loads
-  useEffect(() => {
-    if (user && !hasInitialized) {
-      // Create a shallow copy for editing
-      setEditedUser({ ...user });
-      setHasInitialized(true);
+  // --- Data Fetching Logic ---
+  const fetchUserProfile = useCallback(async () => {
+    if (!userId) {
+      console.log("No userId available. User may be logged out.");
+      setIsLoading(false);
+      return;
     }
-  }, [user, hasInitialized]);
 
-  // Handle input changes
+    setIsLoading(true);
+    try {
+      // Use the real fetch service with the derived userId
+      const response = await fetchUserById(userId);
+
+      if (response && response.success) {
+        const userData = response.data;
+        // Set the fetched data as the source of truth
+        setMyProfile(userData);
+        // Initialize the editable state
+        setEditedUser({ ...userData });
+      } else {
+        Alert.alert(
+          "Error",
+          response?.message || "Failed to fetch user profile."
+        );
+      }
+    } catch (error) {
+      Alert.alert("Error", "Network error. Failed to fetch user profile.");
+      console.error("Fetch User Error:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [userId]);
+
+  // Fetch data on component mount or when userId changes
+  useEffect(() => {
+    fetchUserProfile();
+  }, [fetchUserProfile]);
+
+  // --- Edit Handlers ---
   const handleChange = useCallback((key, value) => {
     setEditedUser((prev) => ({ ...prev, [key]: value }));
   }, []);
 
-  // Handle form submission (Save)
-  const handleSave = useCallback(() => {
+  const handleSave = useCallback(async () => {
     // 1. Validation
     if (!editedUser.name || !editedUser.email) {
       Alert.alert("Error", "Name and Email are required fields.");
       return;
     }
 
-    // 2. Mock API Call
-    console.log("Saving changes:", editedUser);
+    setIsSaving(true);
+    try {
+      // 2. Real API Call
+      const payload = {
+        name: editedUser.name,
+        email: editedUser.email,
+      };
 
-    // Mock API success:
-    setTimeout(() => {
-      Alert.alert("Success", "Profile updated successfully!");
-      setIsEditing(false);
-    }, 500); // Simulate network delay
-  }, [editedUser]);
+      const response = await updateUser(userId, payload);
 
-  // Handle canceling edits
+      if (response && response.success) {
+        const updatedData = response.data;
+
+        // 3. Update the local source of truth
+        setMyProfile(updatedData);
+
+        // 4. Update the global AuthContext state using the aliased function
+        // This line now correctly calls context.updateUser(updatedData)
+        setAuthUser(updatedData);
+
+        Alert.alert("Success", "Profile updated successfully!");
+        setIsEditing(false);
+      } else {
+        Alert.alert("Error", response?.message || "Failed to update profile.");
+      }
+    } catch (error) {
+      Alert.alert("Error", "Network error. Failed to save changes.");
+      console.error("Update User Error:", error);
+    } finally {
+      setIsSaving(false);
+    }
+  }, [userId, editedUser, setAuthUser]);
+
   const handleCancel = useCallback(() => {
-    // Revert changes back to the original fetched data
-    setEditedUser({ ...user });
+    // Revert changes back to the last fetched data (myProfile)
+    if (myProfile) {
+      setEditedUser({ ...myProfile });
+    }
     setIsEditing(false);
-  }, [user]);
+  }, [myProfile]);
 
   // Format creation date for display
   const formatDate = (dateString) => {
@@ -108,26 +142,30 @@ const App = () => {
     }
   };
 
-  if (isLoading || !hasInitialized) {
+  // --- Loading State Display ---
+  if (isLoading || !myProfile) {
     return (
       <View style={[styles.center, { backgroundColor: colors.background }]}>
-        <Text variant="headlineMedium">Loading Profile...</Text>
+        <ActivityIndicator size="large" color={BRAND_COLOR} />
+        <Text variant="headlineSmall" style={{ marginTop: 15 }}>
+          Loading Profile...
+        </Text>
       </View>
     );
   }
 
+  // --- Role Badge Component ---
   const RoleBadge = ({ role }) => {
     let colorStyle = { color: colors.onSurface };
     let backgroundStyle = { backgroundColor: colors.surfaceVariant };
 
     if (role === "admin") {
       colorStyle = { color: "white" };
-      backgroundStyle = { backgroundColor: "#E53935" }; // Red 600 for admin
+      backgroundStyle = { backgroundColor: "#E53935" };
     } else if (role === "garageOwner") {
       colorStyle = { color: "white" };
-      backgroundStyle = { backgroundColor: BRAND_COLOR }; // Use primary color for main role
+      backgroundStyle = { backgroundColor: BRAND_COLOR };
     }
-    // Default uses the surface variant
 
     return (
       <View style={[styles.roleBadge, backgroundStyle]}>
@@ -142,6 +180,7 @@ const App = () => {
       style={[styles.container, { backgroundColor: colors.background }]}
       contentContainerStyle={styles.contentContainer}
     >
+      {/* Header and Edit/Cancel Button */}
       <View style={styles.headerContainer}>
         <Text
           variant="headlineLarge"
@@ -168,13 +207,13 @@ const App = () => {
           <View style={styles.avatarContainer}>
             <Icon name="account-circle" size={80} color={BRAND_COLOR} />
             <Text variant="bodySmall" style={styles.userIdText}>
-              User ID: {user._id}
+              User ID: {myProfile._id}
             </Text>
           </View>
 
           <Divider style={styles.cardDivider} />
 
-          {/* 1. Name Field */}
+          {/* 1. Name Field (Editable/View) */}
           <View style={styles.fieldRow}>
             <Icon
               name="badge-account-outline"
@@ -185,7 +224,7 @@ const App = () => {
             {isEditing ? (
               <TextInput
                 label="Full Name"
-                value={editedUser.name}
+                value={editedUser.name} // Use editable state for input
                 onChangeText={(text) => handleChange("name", text)}
                 style={styles.inputField}
                 mode="outlined"
@@ -193,14 +232,14 @@ const App = () => {
             ) : (
               <List.Item
                 title="Name"
-                description={editedUser.name}
+                description={myProfile.name} // Use source of truth for view
                 titleStyle={{ fontWeight: "bold" }}
                 style={styles.viewItem}
               />
             )}
           </View>
 
-          {/* 2. Email Field */}
+          {/* 2. Email Field (Editable/View) */}
           <View style={styles.fieldRow}>
             <Icon
               name="email-outline"
@@ -211,7 +250,7 @@ const App = () => {
             {isEditing ? (
               <TextInput
                 label="Email Address"
-                value={editedUser.email}
+                value={editedUser.email} // Use editable state for input
                 onChangeText={(text) => handleChange("email", text)}
                 keyboardType="email-address"
                 autoCapitalize="none"
@@ -221,7 +260,7 @@ const App = () => {
             ) : (
               <List.Item
                 title="Email"
-                description={editedUser.email}
+                description={myProfile.email} // Use source of truth for view
                 titleStyle={{ fontWeight: "bold" }}
                 style={styles.viewItem}
               />
@@ -240,7 +279,7 @@ const App = () => {
             />
             <View style={styles.roleDisplayItem}>
               <Text style={styles.roleTitle}>Role</Text>
-              <RoleBadge role={editedUser.role} />
+              <RoleBadge role={myProfile.role} />
             </View>
           </View>
 
@@ -254,7 +293,7 @@ const App = () => {
             />
             <List.Item
               title="Member Since"
-              description={formatDate(editedUser.createdAt)}
+              description={formatDate(myProfile.createdAt)}
               titleStyle={{ fontWeight: "bold" }}
               style={styles.viewItem}
             />
@@ -289,12 +328,7 @@ const App = () => {
           <Button
             mode="outlined"
             icon="key-change"
-            onPress={() =>
-              Alert.alert(
-                "Security Action",
-                "Redirect to Change Password screen."
-              )
-            }
+            onPress={() => navigation.navigate("ChangePassword")}
             textColor={BRAND_COLOR}
             style={{ borderColor: BRAND_COLOR, borderWidth: 1 }}
           >
@@ -310,10 +344,12 @@ const App = () => {
             mode="contained"
             icon="content-save-outline"
             onPress={handleSave}
+            loading={isSaving}
+            disabled={isSaving}
             style={[styles.saveButton, { backgroundColor: BRAND_COLOR }]}
             labelStyle={styles.saveLabel}
           >
-            Save Changes
+            {isSaving ? "Saving..." : "Save Changes"}
           </Button>
         </View>
       )}
@@ -323,7 +359,7 @@ const App = () => {
   );
 };
 
-// --- Styles ---
+// --- Styles (Unchanged) ---
 const styles = StyleSheet.create({
   container: { flex: 1 },
   contentContainer: { paddingVertical: 20, paddingHorizontal: 15 },
@@ -332,8 +368,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-
-  // Header
   headerContainer: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -345,8 +379,6 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     paddingHorizontal: 10,
   },
-
-  // Avatar
   avatarContainer: {
     alignItems: "center",
     marginBottom: 10,
@@ -357,15 +389,12 @@ const styles = StyleSheet.create({
     fontStyle: "italic",
     fontSize: 12,
   },
-
-  // Cards & Fields
   infoCard: {
     marginBottom: 20,
     borderRadius: 12,
     elevation: 4,
   },
   cardDivider: { marginVertical: 15 },
-
   fieldRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -386,8 +415,6 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingLeft: 0,
   },
-
-  // Role Badge specific styles for React Native
   roleDisplayItem: {
     flex: 1,
     paddingLeft: 0,
@@ -411,8 +438,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "600",
   },
-
-  // Save Button
   saveButtonContainer: {
     paddingHorizontal: 5,
     marginTop: 20,
@@ -429,4 +454,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default App;
+export default Profile;

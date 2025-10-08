@@ -6,7 +6,7 @@ export const findAllNotifications = async (req, res) => {
   try {
     const notifications = await Notification.find({})
       .sort({ createdAt: -1 })
-    //   .limit(100)
+      //   .limit(100)
       .populate("nearestGarage.garageId", "name phone address")
       .lean();
 
@@ -63,7 +63,6 @@ export const findNotificationById = async (req, res) => {
   }
 };
 
-
 export const findAllNotificationsByGarageId = async (req, res) => {
   const { garageId } = req.params;
 
@@ -97,71 +96,6 @@ export const findAllNotificationsByGarageId = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Server error while retrieving garage-specific notifications.",
-    });
-  }
-};
-
-// =========================================================================
-// U - UPDATE: Update the status (Existing function, kept for completeness)
-// =========================================================================
-export const updateNotificationStatus = async (req, res) => {
-  const { id } = req.params;
-  const { newStatus, newExpoTicket } = req.body;
-
-  if (!mongoose.Types.ObjectId.isValid(id)) {
-    return res
-      .status(400)
-      .json({ success: false, message: "Invalid Notification ID format." });
-  }
-  if (!newStatus) {
-    return res
-      .status(400)
-      .json({ success: false, message: "Missing newStatus field." });
-  }
-
-  const validStatuses = [
-    "SENT_SUCCESS",
-    "NO_GARAGE_FOUND",
-    "INVALID_TOKEN",
-    "SEND_FAILED",
-    "SERVER_ERROR",
-  ];
-  if (!validStatuses.includes(newStatus)) {
-    return res.status(400).json({
-      success: false,
-      message: `Invalid status provided: ${newStatus}.`,
-    });
-  }
-
-  try {
-    const updateData = {
-      notificationStatus: newStatus,
-      ...(newExpoTicket && { expoTicket: newExpoTicket }),
-      updatedAt: Date.now(),
-    };
-
-    const notification = await Notification.findByIdAndUpdate(
-      id,
-      { $set: updateData },
-      { new: true, runValidators: true }
-    );
-
-    if (!notification) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Notification log not found." });
-    }
-
-    return res.status(200).json({
-      success: true,
-      message: "Notification status updated successfully.",
-      data: notification,
-    });
-  } catch (error) {
-    console.error(`Error updating notification status: ${error.message}`);
-    return res.status(500).json({
-      success: false,
-      message: "Server error while updating notification.",
     });
   }
 };
@@ -252,6 +186,223 @@ export const deleteAllNotifications = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Server error while deleting all notifications.",
+    });
+  }
+};
+
+export const updateNotificationStatus = async (req, res) => {
+  const { id } = req.params;
+  const { newStatus, newExpoTicket } = req.body;
+
+  if (!mongoose.Types.ObjectId.isValid(id)) {
+    return res
+      .status(400)
+      .json({ success: false, message: "Invalid Notification ID format." });
+  }
+  if (!newStatus) {
+    return res
+      .status(400)
+      .json({ success: false, message: "Missing newStatus field." });
+  }
+
+  // --- UPDATED: Include all new valid service statuses ---
+  const validStatuses = [
+    // Initial Sending Statuses
+    "SENT_SUCCESS",
+    "NO_GARAGE_FOUND",
+    "INVALID_TOKEN",
+    "SEND_FAILED",
+    "SERVER_ERROR",
+    // New Service/Response Statuses
+    "SENT_RECEIVED",
+    "GARAGE_ACCEPTED",
+    "GARAGE_DECLINED",
+    "SERVICE_COMPLETED",
+    "DRIVER_CANCELED",
+    "EXPIRED",
+  ];
+  if (!validStatuses.includes(newStatus)) {
+    return res.status(400).json({
+      success: false,
+      message: `Invalid status provided: ${newStatus}. Must be one of: ${validStatuses.join(
+        ", "
+      )}`,
+    });
+  }
+  // --- END UPDATED VALIDATION ---
+
+  try {
+    const updateData = {
+      notificationStatus: newStatus,
+      ...(newExpoTicket && { expoTicket: newExpoTicket }),
+      updatedAt: Date.now(),
+    };
+
+    const notification = await Notification.findByIdAndUpdate(
+      id,
+      { $set: updateData },
+      { new: true, runValidators: true }
+    );
+
+    if (!notification) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Notification log not found." });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Notification status updated successfully.",
+      data: notification,
+    });
+  } catch (error) {
+    console.error(`Error updating notification status: ${error.message}`);
+    return res.status(500).json({
+      success: false,
+      message: "Server error while updating notification.",
+    });
+  }
+};
+
+// =========================================================================
+// U - UPDATE: Garage Accepts the Service Request
+// Endpoint: PUT /api/notifications/:id/accept
+// =========================================================================
+export const acceptRequest = async (req, res) => {
+  const { id } = req.params;
+
+  if (!mongoose.Types.ObjectId.isValid(id)) {
+    return res
+      .status(400)
+      .json({ success: false, message: "Invalid Notification ID format." });
+  }
+
+  try {
+    const notification = await Notification.findByIdAndUpdate(
+      id,
+      {
+        $set: {
+          notificationStatus: "GARAGE_ACCEPTED",
+          updatedAt: Date.now(),
+        },
+      },
+      { new: true, runValidators: true }
+    );
+
+    if (!notification) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Notification log not found." });
+    }
+
+    // You could optionally send a push notification back to the driver here
+    // informing them that the garage has accepted the request.
+
+    return res.status(200).json({
+      success: true,
+      message: "Service request accepted by garage.",
+      data: notification,
+    });
+  } catch (error) {
+    console.error(`Error accepting request: ${error.message}`);
+    return res.status(500).json({
+      success: false,
+      message: "Server error while accepting request.",
+    });
+  }
+};
+
+// =========================================================================
+// U - UPDATE: Garage Declines the Service Request
+// Endpoint: PUT /api/notifications/:id/decline
+// =========================================================================
+export const declineRequest = async (req, res) => {
+  const { id } = req.params;
+
+  if (!mongoose.Types.ObjectId.isValid(id)) {
+    return res
+      .status(400)
+      .json({ success: false, message: "Invalid Notification ID format." });
+  }
+
+  try {
+    const notification = await Notification.findByIdAndUpdate(
+      id,
+      {
+        $set: {
+          notificationStatus: "GARAGE_DECLINED",
+          updatedAt: Date.now(),
+        },
+      },
+      { new: true, runValidators: true }
+    );
+
+    if (!notification) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Notification log not found." });
+    }
+
+    // You could optionally send a push notification back to the driver here
+    // informing them that the nearest garage has declined and they need to find another.
+
+    return res.status(200).json({
+      success: true,
+      message: "Service request declined by garage.",
+      data: notification,
+    });
+  } catch (error) {
+    console.error(`Error declining request: ${error.message}`);
+    return res.status(500).json({
+      success: false,
+      message: "Server error while declining request.",
+    });
+  }
+};
+
+// =========================================================================
+// U - UPDATE: Garage/Driver Marks Service as Completed/Approved
+// Endpoint: PUT /api/notifications/:id/complete
+// =========================================================================
+export const completeService = async (req, res) => {
+  const { id } = req.params;
+
+  if (!mongoose.Types.ObjectId.isValid(id)) {
+    return res
+      .status(400)
+      .json({ success: false, message: "Invalid Notification ID format." });
+  }
+
+  try {
+    const notification = await Notification.findByIdAndUpdate(
+      id,
+      {
+        $set: {
+          notificationStatus: "SERVICE_COMPLETED",
+          updatedAt: Date.now(),
+        },
+      },
+      { new: true, runValidators: true }
+    );
+
+    if (!notification) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Notification log not found." });
+    }
+
+    // This is the final state. You might trigger payment processing or rating here.
+
+    return res.status(200).json({
+      success: true,
+      message: "Service successfully marked as completed.",
+      data: notification,
+    });
+  } catch (error) {
+    console.error(`Error completing service: ${error.message}`);
+    return res.status(500).json({
+      success: false,
+      message: "Server error while completing service.",
     });
   }
 };

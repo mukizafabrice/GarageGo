@@ -26,6 +26,7 @@ import GarageProfile from "../screens/garage/GarageProfile";
 // --- User Screens
 import DriverScreen from "../screens/staff/DriverScreen";
 import StaffSettingsScreen from "../screens/staff/StaffSettingsScreen";
+import StaffProfile from "../screens/staff/StaffProfile";
 // common screens
 
 import Profile from "../screens/common/Profile";
@@ -320,7 +321,19 @@ const AppNavigator = () => {
         </>
       ) : (
         // Default to user tabs
-        <Stack.Screen name="UserTabs" component={UserTabs} />
+        <>
+          <Stack.Screen name="UserTabs" component={UserTabs} />
+          <Stack.Screen
+            name="StaffProfile"
+            component={StaffProfile}
+            options={{
+              headerShown: true,
+              title: " Garage Profile",
+              headerStyle: { backgroundColor: "#4CAF50" },
+              headerTintColor: "#fff",
+            }}
+          />
+        </>
       )}
       <Stack.Screen
         name="Profile"
