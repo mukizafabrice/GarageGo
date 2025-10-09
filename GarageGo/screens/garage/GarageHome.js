@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -6,8 +6,12 @@ import {
   StyleSheet,
   TouchableOpacity,
 } from "react-native";
-import { AntDesign, Feather } from "@expo/vector-icons"; // Assuming you use Expo/Vector Icons
-
+import { AntDesign, Feather } from "@expo/vector-icons";
+import * as Notifications from "expo-notifications";
+import { getGarageByUserId } from "../../services/garageService";
+import { updateNotificationStatusAction } from "../../services/notificationService";
+import { useAuth } from "../../context/AuthContext";
+import { fetchDashboardStats } from "../../services/statsService";
 // --- CONSTANTS ---
 const PRIMARY_COLOR = "#4CAF50";
 const ALERT_COLOR = "#FF9800"; // For new/pending requests
@@ -99,6 +103,20 @@ const NotificationCard = ({ notif }) => {
 
 // --- 3. MAIN COMPONENT: Dashboard ---
 const GarageOwnerDashboard = () => {
+  const { user } = useAuth();
+  const userId = user?._id;
+  const [garage, setGarage] = useState(null);
+
+  useEffect(() => {
+    const fetchMyGarage = async () => {
+      if (userId) {
+        const garageData = await getGarageByUserId(userId);
+
+        setGarage(garageData);
+      }
+    };
+    fetchMyGarage();
+  }, []);
   // --- MOCK DATA (Replace with API/Redux Data) ---
   const MOCK_STATS = {
     newRequests: 5,

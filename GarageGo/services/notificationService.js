@@ -166,3 +166,28 @@ export const deleteAllNotifications = async () => {
     throw error.response?.data || error;
   }
 };
+export const fetchLiveNotifications = async (garageId) => {
+  if (!garageId) {
+    // Return an empty array or throw an error if the garage ID is missing
+    console.warn("Garage ID is missing. Cannot fetch live notifications.");
+    return [];
+  }
+
+  try {
+    const response = await axiosInstance.get(`${NOTIFICATION_BASE_URL}/live`, {
+      params: {
+        garageId: garageId,
+      },
+    });
+
+    // Assuming the backend returns the list of notifications under response.data.data
+    return response.data.data;
+  } catch (error) {
+    console.error(
+      "Error fetching live notifications:",
+      error.response?.data || error.message
+    );
+    // Propagate the error to be handled in the component
+    throw error.response?.data || error;
+  }
+};
