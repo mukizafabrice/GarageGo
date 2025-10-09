@@ -9,9 +9,9 @@ import {
   findAllNotificationsByGarageId,
   deleteAllNotificationsByGarageId,
   // --- NEW IMPORTS ---
-  acceptRequest,
-  declineRequest,
-  completeService,
+  // acceptRequest,
+  // declineRequest,
+  // completeService,
 } from "../controllers/notificationController.js"; // Adjust path as necessary
 
 const router = express.Router();
@@ -41,23 +41,17 @@ router.delete("/garage/:garageId", deleteAllNotificationsByGarageId);
 
 // PUT /api/notifications/:id/accept
 // Garage accepts the request: sets status to GARAGE_ACCEPTED
-router.put("/:id/accept", acceptRequest);
+// router.put("/:id/accept", acceptRequest);
 
-// PUT /api/notifications/:id/decline
-// Garage declines the request: sets status to GARAGE_DECLINED
-router.put("/:id/decline", declineRequest);
+// // PUT /api/notifications/:id/decline
+// // Garage declines the request: sets status to GARAGE_DECLINED
+// router.put("/:id/decline", declineRequest);
 
-// PUT /api/notifications/:id/complete
-// Garage/Driver marks service as complete: sets status to SERVICE_COMPLETED
-router.put("/:id/complete", completeService);
+// // PUT /api/notifications/:id/complete
+// // Garage/Driver marks service as complete: sets status to SERVICE_COMPLETED
+// router.put("/:id/complete", completeService);
 
-// =========================================================================
-// U/D - GENERIC UPDATE & DELETE (BY ID)
-// =========================================================================
-
-// PUT /api/notifications/:id
-// Generic update route for status and ticket info (e.g., for receipt verification)
-router.put("/:id", updateNotificationStatus);
+router.put("/:id/:statusAction", updateNotificationStatus);
 
 // DELETE /api/notifications/:id
 router.delete("/:id", deleteNotification);

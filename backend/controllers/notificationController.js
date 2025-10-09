@@ -190,79 +190,79 @@ export const deleteAllNotifications = async (req, res) => {
   }
 };
 
-export const updateNotificationStatus = async (req, res) => {
-  const { id } = req.params;
-  const { newStatus, newExpoTicket } = req.body;
+// export const updateNotificationStatus = async (req, res) => {
+//   const { id } = req.params;
+//   const { newStatus, newExpoTicket } = req.body;
 
-  if (!mongoose.Types.ObjectId.isValid(id)) {
-    return res
-      .status(400)
-      .json({ success: false, message: "Invalid Notification ID format." });
-  }
-  if (!newStatus) {
-    return res
-      .status(400)
-      .json({ success: false, message: "Missing newStatus field." });
-  }
+//   if (!mongoose.Types.ObjectId.isValid(id)) {
+//     return res
+//       .status(400)
+//       .json({ success: false, message: "Invalid Notification ID format." });
+//   }
+//   if (!newStatus) {
+//     return res
+//       .status(400)
+//       .json({ success: false, message: "Missing newStatus field." });
+//   }
 
-  // --- UPDATED: Include all new valid service statuses ---
-  const validStatuses = [
-    // Initial Sending Statuses
-    "SENT_SUCCESS",
-    "NO_GARAGE_FOUND",
-    "INVALID_TOKEN",
-    "SEND_FAILED",
-    "SERVER_ERROR",
-    // New Service/Response Statuses
-    "SENT_RECEIVED",
-    "GARAGE_ACCEPTED",
-    "GARAGE_DECLINED",
-    "SERVICE_COMPLETED",
-    "DRIVER_CANCELED",
-    "EXPIRED",
-  ];
-  if (!validStatuses.includes(newStatus)) {
-    return res.status(400).json({
-      success: false,
-      message: `Invalid status provided: ${newStatus}. Must be one of: ${validStatuses.join(
-        ", "
-      )}`,
-    });
-  }
-  // --- END UPDATED VALIDATION ---
+//   // --- UPDATED: Include all new valid service statuses ---
+//   const validStatuses = [
+//     // Initial Sending Statuses
+//     "SENT_SUCCESS",
+//     "NO_GARAGE_FOUND",
+//     "INVALID_TOKEN",
+//     "SEND_FAILED",
+//     "SERVER_ERROR",
+//     // New Service/Response Statuses
+//     "SENT_RECEIVED",
+//     "GARAGE_ACCEPTED",
+//     "GARAGE_DECLINED",
+//     "SERVICE_COMPLETED",
+//     "DRIVER_CANCELED",
+//     "EXPIRED",
+//   ];
+//   if (!validStatuses.includes(newStatus)) {
+//     return res.status(400).json({
+//       success: false,
+//       message: `Invalid status provided: ${newStatus}. Must be one of: ${validStatuses.join(
+//         ", "
+//       )}`,
+//     });
+//   }
+//   // --- END UPDATED VALIDATION ---
 
-  try {
-    const updateData = {
-      notificationStatus: newStatus,
-      ...(newExpoTicket && { expoTicket: newExpoTicket }),
-      updatedAt: Date.now(),
-    };
+//   try {
+//     const updateData = {
+//       notificationStatus: newStatus,
+//       ...(newExpoTicket && { expoTicket: newExpoTicket }),
+//       updatedAt: Date.now(),
+//     };
 
-    const notification = await Notification.findByIdAndUpdate(
-      id,
-      { $set: updateData },
-      { new: true, runValidators: true }
-    );
+//     const notification = await Notification.findByIdAndUpdate(
+//       id,
+//       { $set: updateData },
+//       { new: true, runValidators: true }
+//     );
 
-    if (!notification) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Notification log not found." });
-    }
+//     if (!notification) {
+//       return res
+//         .status(404)
+//         .json({ success: false, message: "Notification log not found." });
+//     }
 
-    return res.status(200).json({
-      success: true,
-      message: "Notification status updated successfully.",
-      data: notification,
-    });
-  } catch (error) {
-    console.error(`Error updating notification status: ${error.message}`);
-    return res.status(500).json({
-      success: false,
-      message: "Server error while updating notification.",
-    });
-  }
-};
+//     return res.status(200).json({
+//       success: true,
+//       message: "Notification status updated successfully.",
+//       data: notification,
+//     });
+//   } catch (error) {
+//     console.error(`Error updating notification status: ${error.message}`);
+//     return res.status(500).json({
+//       success: false,
+//       message: "Server error while updating notification.",
+//     });
+//   }
+// };
 
 // =========================================================================
 // U - UPDATE: Garage Accepts the Service Request
@@ -406,3 +406,156 @@ export const completeService = async (req, res) => {
     });
   }
 };
+
+export const updateNotificationStatus = async (req, res) => {
+  // Extract both the notification ID and the action requested from the path
+  const { id, statusAction } = req.params;
+
+  // 1. Validation: ID format
+  if (!mongoose.Types.ObjectId.isValid(id)) {
+    return res
+      .status(400)
+      .json({ success: false, message: "Invalid Notification ID format." });
+  }
+
+  // 2. Determine the target status and response message based on the action
+  let newStatus;
+  let successMessage;
+
+  switch (statusAction.toLowerCase()) {
+    case "accept":
+      newStatus = "GARAGE_ACCEPTED";
+      successMessage = "Service request accepted by garage.";
+      break;
+
+    case "decline":
+      newStatus = "GARAGE_DECLINED";
+      successMessage = "Service request declined by garage.";
+      break;
+
+    case "complete":
+      newStatus = "SERVICE_COMPLETED";
+      successMessage = "Service successfully marked as completed.";
+      // You can add checks here (e.g., if(req.user.role !== 'garage') throw error)
+      break;
+
+    default:
+      // If the action is not recognized, return an error
+      return res.status(400).json({
+        success: false,
+        message:
+          "Invalid status action specified. Must be 'accept', 'decline', or 'complete'.",
+      });
+  }
+
+  // 3. Database Update Logic
+  try {
+    const notification = await Notification.findByIdAndUpdate(
+      id,
+      {
+        $set: {
+          notificationStatus: newStatus,
+          updatedAt: Date.now(),
+        },
+      },
+      // { new: true } returns the updated document. { runValidators: true } ensures status is valid enum.
+      { new: true, runValidators: true }
+    );
+
+    // Check if the document was found and updated
+    if (!notification) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Notification log not found." });
+    }
+
+    // 4. Success Response
+    return res.status(200).json({
+      success: true,
+      message: successMessage,
+      data: notification,
+    });
+  } catch (error) {
+    console.error(
+      `Error processing request for status ${statusAction}: ${error.message}`
+    );
+    return res.status(500).json({
+      success: false,
+      message: `Server error while processing ${statusAction} request.`,
+    });
+  }
+};
+
+// export const updateNotificationSentStatus = async (req, res) => {
+//   const { id } = req.params;
+//   const { newStatus, newExpoTicket } = req.body;
+
+//   if (!mongoose.Types.ObjectId.isValid(id)) {
+//     return res
+//       .status(400)
+//       .json({ success: false, message: "Invalid Notification ID format." });
+//   }
+//   if (!newStatus) {
+//     return res
+//       .status(400)
+//       .json({ success: false, message: "Missing newStatus field." });
+//   }
+
+//   // --- UPDATED: Include all new valid service statuses ---
+//   const validStatuses = [
+//     // Initial Sending Statuses
+//     "SENT_SUCCESS",
+//     "NO_GARAGE_FOUND",
+//     "INVALID_TOKEN",
+//     "SEND_FAILED",
+//     "SERVER_ERROR",
+//     // New Service/Response Statuses
+//     "SENT_RECEIVED",
+//     "GARAGE_ACCEPTED",
+//     "GARAGE_DECLINED",
+//     "SERVICE_COMPLETED",
+//     "DRIVER_CANCELED",
+//     "EXPIRED",
+//   ];
+//   if (!validStatuses.includes(newStatus)) {
+//     return res.status(400).json({
+//       success: false,
+//       message: `Invalid status provided: ${newStatus}. Must be one of: ${validStatuses.join(
+//         ", "
+//       )}`,
+//     });
+//   }
+//   // --- END UPDATED VALIDATION ---
+
+//   try {
+//     const updateData = {
+//       notificationStatus: newStatus,
+//       ...(newExpoTicket && { expoTicket: newExpoTicket }),
+//       updatedAt: Date.now(),
+//     };
+
+//     const notification = await Notification.findByIdAndUpdate(
+//       id,
+//       { $set: updateData },
+//       { new: true, runValidators: true }
+//     );
+
+//     if (!notification) {
+//       return res
+//         .status(404)
+//         .json({ success: false, message: "Notification log not found." });
+//     }
+
+//     return res.status(200).json({
+//       success: true,
+//       message: "Notification status updated successfully.",
+//       data: notification,
+//     });
+//   } catch (error) {
+//     console.error(`Error updating notification status: ${error.message}`);
+//     return res.status(500).json({
+//       success: false,
+//       message: "Server error while updating notification.",
+//     });
+//   }
+// };

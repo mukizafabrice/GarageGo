@@ -1,401 +1,304 @@
-import React, { useState } from "react";
+import React from "react";
 import {
-  ScrollView,
   View,
-  StyleSheet,
-  Dimensions,
-  TouchableOpacity,
-  Alert,
-} from "react-native";
-import {
   Text,
-  Card,
-  Button,
-  Divider,
-  useTheme,
-  List,
-  IconButton,
-} from "react-native-paper";
-import { MaterialCommunityIcons } from "@expo/vector-icons";
+  ScrollView,
+  StyleSheet,
+  TouchableOpacity,
+} from "react-native";
+import { AntDesign, Feather } from "@expo/vector-icons"; // Assuming you use Expo/Vector Icons
 
-// --- Configuration ---
+// --- CONSTANTS ---
 const PRIMARY_COLOR = "#4CAF50";
-const SCREEN_WIDTH = Dimensions.get("window").width;
+const ALERT_COLOR = "#FF9800"; // For new/pending requests
+const DECLINED_COLOR = "#E53935"; // For declined/failed
+const ACCEPTED_COLOR = PRIMARY_COLOR; // For accepted jobs
 
-// --- Dummy Data ---
-const dummyUser = {
-  name: "Alex Johnson",
-  role: "Manager",
-};
+// --- 1. REUSABLE COMPONENT: StatBox ---
+const StatBox = ({ title, value, unit = "", color }) => (
+  <View style={styles.statBox}>
+    <Text style={[styles.statValue, { color: color }]}>
+      {value}
+      {unit}
+    </Text>
+    <Text style={styles.statTitle}>{title}</Text>
+  </View>
+);
 
-const stats = [
-  // Using MaterialCommunityIcons names
-  {
-    id: 1,
-    title: "Jobs Active",
-    value: 14,
-    icon: "car-settings",
-    color: PRIMARY_COLOR,
-    secondaryColor: PRIMARY_COLOR,
-  },
-  {
-    id: 2,
-    title: "Daily Revenue",
-    value: "$2,850",
-    icon: "currency-usd",
-    color: "#FF9800",
-    secondaryColor: "#FF9800",
-  },
-  {
-    id: 3,
-    title: "Available Bays",
-    value: 3,
-    icon: "garage-open",
-    color: "#2196F3",
-    secondaryColor: "#2196F3",
-  },
-];
+// --- 2. REUSABLE COMPONENT: NotificationCard ---
+// This component displays a single service request
+const NotificationCard = ({ notif }) => {
+  const getStatusStyle = (status) => {
+    switch (status) {
+      case "SENT_SUCCESS":
+        return { color: ALERT_COLOR, text: "NEW REQUEST" };
+      case "GARAGE_ACCEPTED":
+        return { color: ACCEPTED_COLOR, text: "ACTIVE JOB" };
+      case "GARAGE_DECLINED":
+      case "SEND_FAILED":
+        return { color: DECLINED_COLOR, text: "DECLINED/FAILED" };
+      case "SERVICE_COMPLETED":
+        return { color: "#757575", text: "COMPLETED" };
+      default:
+        return { color: "#9E9E9E", text: "PENDING" };
+    }
+  };
 
-const activeJobs = [
-  {
-    id: "J0045",
-    customer: "Sarah Connor",
-    vehicle: "Tesla Model 3",
-    status: "In Progress (Engine)",
-    timeIn: "10:30 AM",
-    badgeColor: "#FFC107",
-    statusColor: "#D29400",
-  },
-  {
-    id: "J0044",
-    customer: "John Doe",
-    vehicle: "Ford F-150",
-    status: "Waiting Parts (Tires)",
-    timeIn: "08:00 AM",
-    badgeColor: "#00BCD4",
-    statusColor: "#0097A7",
-  },
-  {
-    id: "J0043",
-    customer: "Lisa Smith",
-    vehicle: "Honda Civic",
-    status: "Ready for Pickup (Oil Change)",
-    timeIn: "Yesterday",
-    badgeColor: PRIMARY_COLOR,
-    statusColor: PRIMARY_COLOR,
-  },
-];
+  const statusInfo = getStatusStyle(notif.notificationStatus);
+  const isActionable = notif.notificationStatus === "SENT_SUCCESS";
 
-const quickActions = [
-  { icon: "plus-circle-outline", label: "New Job", action: "NewJob" },
-  {
-    icon: "calendar-clock-outline",
-    label: "View Schedule",
-    action: "Schedule",
-  },
-  { icon: "warehouse", label: "Manage Inventory", action: "Inventory" },
-  { icon: "account-multiple-outline", label: "Team Status", action: "Team" },
-];
-
-// --- Utility Functions ---
-const handleAction = (action) => {
-  Alert.alert("Dashboard Action", `Navigating to ${action} screen...`);
-};
-
-const StatCard = ({ title, value, icon, color }) => {
-  const { colors } = useTheme();
   return (
-    <Card
-      style={[
-        styles.statCard,
-        {
-          backgroundColor: colors.surface,
-          borderColor: color + "33",
-          borderWidth: 1,
-        },
-      ]}
-    >
-      <View style={styles.statContent}>
-        <View style={styles.statIconContainer}>
-          <MaterialCommunityIcons name={icon} size={28} color={color} />
-        </View>
+    <View style={styles.card}>
+      <View style={styles.cardHeader}>
+        <Text style={styles.cardDriverName}>Driver: {notif.driverName}</Text>
         <Text
-          variant="titleMedium"
-          style={[styles.statValue, { color: color }]}
+          style={[styles.statusBadge, { backgroundColor: statusInfo.color }]}
         >
-          {value}
-        </Text>
-        <Text
-          variant="bodySmall"
-          style={{ color: colors.onSurfaceVariant, marginTop: 4 }}
-        >
-          {title}
+          {statusInfo.text}
         </Text>
       </View>
-    </Card>
+
+      <Text style={styles.cardDetail}>Phone: {notif.driverPhoneNumber}</Text>
+      <Text style={styles.cardDetail}>
+        Request Time: {notif.timeAgo || "Just now"}
+      </Text>
+      <Text style={styles.cardDetail}>
+        Location: ({notif.driverLocation.coordinates.join(", ")})
+      </Text>
+
+      {isActionable && (
+        <View style={styles.cardActions}>
+          <TouchableOpacity
+            style={[styles.actionButton, { backgroundColor: PRIMARY_COLOR }]}
+          >
+            <AntDesign name="checkcircleo" size={16} color="white" />
+            <Text style={styles.actionButtonText}>Accept Job</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.actionButton, styles.declineButton]}>
+            <AntDesign name="closecircleo" size={16} color={DECLINED_COLOR} />
+            <Text style={[styles.actionButtonText, { color: DECLINED_COLOR }]}>
+              Decline
+            </Text>
+          </TouchableOpacity>
+        </View>
+      )}
+      {!isActionable && notif.notificationStatus === "GARAGE_ACCEPTED" && (
+        <TouchableOpacity
+          style={[
+            styles.actionButton,
+            { backgroundColor: "#2196F3", marginTop: 10 },
+          ]}
+        >
+          <Feather name="navigation" size={16} color="white" />
+          <Text style={styles.actionButtonText}>Navigate & Call</Text>
+        </TouchableOpacity>
+      )}
+    </View>
   );
 };
 
-/**
- * Main Garage Dashboard Component
- */
-const App = () => {
-  const { colors } = useTheme();
+// --- 3. MAIN COMPONENT: Dashboard ---
+const GarageOwnerDashboard = () => {
+  // --- MOCK DATA (Replace with API/Redux Data) ---
+  const MOCK_STATS = {
+    newRequests: 5,
+    activeJobs: 3,
+    acceptanceRate: 92,
+  };
+  const MOCK_NOTIFICATIONS = [
+    {
+      id: 1,
+      driverName: "Sarah Connor",
+      driverPhoneNumber: "555-0101",
+      driverLocation: { coordinates: [40.71, -74.0] },
+      notificationStatus: "SENT_SUCCESS",
+      timeAgo: "2 mins ago",
+    },
+    {
+      id: 2,
+      driverName: "John Doe",
+      driverPhoneNumber: "555-0202",
+      driverLocation: { coordinates: [40.75, -73.98] },
+      notificationStatus: "GARAGE_ACCEPTED",
+      timeAgo: "1 hour ago",
+    },
+    {
+      id: 3,
+      driverName: "T-800",
+      driverPhoneNumber: "555-0303",
+      driverLocation: { coordinates: [40.68, -74.04] },
+      notificationStatus: "SERVICE_COMPLETED",
+      timeAgo: "1 day ago",
+    },
+  ];
+  const GARAGE_NAME = "Central Auto Repair";
+  // ------------------------------------------------
 
   return (
-    <ScrollView
-      style={[styles.container, { backgroundColor: colors.background }]}
-      contentContainerStyle={styles.contentContainer}
-    >
-      {/* 1. Header and Welcome */}
-      <View style={[styles.header, { borderBottomColor: colors.outline }]}>
-        <View>
-          <Text
-            variant="headlineSmall"
-            style={{ fontWeight: "600", color: colors.onBackground }}
-          >
-            Welcome Back, {dummyUser.name}!
-          </Text>
-          <Text
-            variant="bodyMedium"
-            style={{ color: colors.onSurfaceVariant, marginTop: 4 }}
-          >
-            Garage Overview for Today
-          </Text>
-        </View>
-        <IconButton
-          icon="bell-outline"
-          size={26}
-          onPress={() => handleAction("Notifications")}
-          iconColor={PRIMARY_COLOR}
-          style={styles.notificationButton}
+    <View style={styles.container}>
+      {/* 1. Header */}
+      <View style={styles.header}>
+        <Text style={styles.greetingText}>Welcome, {GARAGE_NAME}</Text>
+        <Text style={styles.dateText}>Thursday, Oct 9, 2025</Text>
+      </View>
+
+      {/* 2. Summary Grid (Metrics) */}
+      <View style={styles.statsGrid}>
+        <StatBox
+          title="New Requests"
+          value={MOCK_STATS.newRequests}
+          color={ALERT_COLOR}
+        />
+        <StatBox
+          title="Active Jobs"
+          value={MOCK_STATS.activeJobs}
+          color={ACCEPTED_COLOR}
+        />
+        <StatBox
+          title="Avg. Acceptance"
+          value={MOCK_STATS.acceptanceRate}
+          unit="%"
+          color={PRIMARY_COLOR}
         />
       </View>
 
-      {/* 2. Key Performance Indicators (KPIs) */}
-      <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>
-        TODAY'S METRICS
-      </Text>
-      <View style={styles.statsContainer}>
-        {stats.map((stat) => (
-          <StatCard
-            key={stat.id}
-            title={stat.title}
-            value={stat.value}
-            icon={stat.icon}
-            color={stat.color}
-          />
+      {/* 3. Live Request Feed */}
+      <Text style={styles.sectionTitle}>Live Service Requests</Text>
+      <ScrollView style={styles.feedContainer}>
+        {MOCK_NOTIFICATIONS.map((notif) => (
+          <NotificationCard key={notif.id} notif={notif} />
         ))}
-      </View>
-
-      <Divider style={styles.divider} />
-
-      {/* 3. Quick Actions */}
-      <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>
-        QUICK ACTIONS
-      </Text>
-      <View style={styles.actionsContainer}>
-        {quickActions.map((action) => (
-          <TouchableOpacity
-            key={action.action}
-            style={[styles.actionButton, { backgroundColor: colors.surface }]}
-            onPress={() => handleAction(action.action)}
-          >
-            <MaterialCommunityIcons
-              name={action.icon}
-              size={32}
-              color={PRIMARY_COLOR}
-            />
-            <Text
-              variant="labelMedium"
-              style={[styles.actionLabel, { color: colors.onSurface }]}
-            >
-              {action.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      <Divider style={styles.divider} />
-
-      {/* 4. Active Job List */}
-      <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>
-        ACTIVE JOBS ({activeJobs.length})
-      </Text>
-      <Card style={[styles.jobsCard, { backgroundColor: colors.surface }]}>
-        <List.Section style={{ paddingHorizontal: 0, margin: 0 }}>
-          {activeJobs.map((job, index) => (
-            <React.Fragment key={job.id}>
-              <List.Item
-                title={`${job.customer} - ${job.vehicle}`}
-                description={job.status}
-                titleStyle={styles.jobTitle}
-                descriptionStyle={{ color: job.statusColor, fontWeight: "600" }}
-                left={() => (
-                  <View
-                    style={[
-                      styles.jobIcon,
-                      { backgroundColor: job.badgeColor },
-                    ]}
-                  >
-                    <Text variant="labelSmall" style={styles.jobIdText}>
-                      {job.id}
-                    </Text>
-                  </View>
-                )}
-                right={() => (
-                  <View style={styles.jobRight}>
-                    <Text
-                      variant="bodySmall"
-                      style={{ color: colors.onSurfaceVariant, marginRight: 5 }}
-                    >
-                      {job.timeIn}
-                    </Text>
-                    <MaterialCommunityIcons
-                      name="chevron-right"
-                      size={20}
-                      color={colors.outline}
-                    />
-                  </View>
-                )}
-                onPress={() => handleAction(`Job Details for ${job.id}`)}
-                style={{ paddingVertical: 10 }}
-              />
-              {index < activeJobs.length - 1 && (
-                <Divider style={styles.jobDivider} />
-              )}
-            </React.Fragment>
-          ))}
-        </List.Section>
-        <Button
-          mode="text"
-          labelStyle={{ color: PRIMARY_COLOR, fontWeight: "bold" }}
-          onPress={() => handleAction("View All Jobs")}
-          style={styles.viewAllButton}
-        >
-          View All Jobs
-        </Button>
-      </Card>
-
-      <View style={{ height: 40 }} />
-    </ScrollView>
+        <View style={{ height: 50 }} />
+      </ScrollView>
+    </View>
   );
 };
 
+// --- 4. STYLESHEET ---
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-  },
-  contentContainer: {
-    paddingBottom: 20,
+    backgroundColor: "#F0F4F8", // Slightly more modern background
+    paddingTop: 40, // For notch/safe area
+    paddingHorizontal: 15,
   },
   header: {
+    paddingBottom: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: "#E0E0E0",
+    marginBottom: 10,
+  },
+  greetingText: {
+    fontSize: 26,
+    fontWeight: "bold",
+    color: "#333",
+  },
+  dateText: {
+    fontSize: 14,
+    color: "#777",
+  },
+  statsGrid: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: 20,
-    paddingTop: 50, // For mobile status bar padding
-    paddingBottom: 15,
-  },
-  notificationButton: {
-    marginRight: -10,
-  },
-  sectionTitle: {
-    fontWeight: "700",
-    fontSize: 14,
-    marginLeft: 20,
-    marginTop: 15,
     marginBottom: 10,
-    textTransform: "uppercase",
   },
-  divider: {
-    marginVertical: 15,
-    marginHorizontal: 20,
-  },
-
-  // KPI Stats Styles
-  statsContainer: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "space-around",
-    paddingHorizontal: 10,
-  },
-  statCard: {
-    width: SCREEN_WIDTH * 0.29, // ~3 items per row
-    margin: 4,
-    padding: 8,
-    borderRadius: 12,
-    elevation: 3,
-  },
-  statContent: {
+  statBox: {
+    width: "32%",
+    backgroundColor: "#FFF",
+    borderRadius: 10,
+    padding: 15,
     alignItems: "center",
-    paddingVertical: 5,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 5,
   },
   statValue: {
-    fontWeight: "bold",
+    fontSize: 30,
+    fontWeight: "900",
+    marginBottom: 3,
   },
-  statIconContainer: {
-    marginBottom: 5,
-  },
-
-  // Quick Actions Styles
-  actionsContainer: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "space-between",
-    paddingHorizontal: 20,
-  },
-  actionButton: {
-    width: "48%", // Two items per row with spacing
-    aspectRatio: 1.5, // Maintain aspect ratio
-    borderRadius: 12,
-    padding: 15,
-    marginVertical: 8,
-    alignItems: "center",
-    justifyContent: "center",
-    elevation: 3,
-  },
-  actionLabel: {
-    marginTop: 8,
-    fontWeight: "600",
+  statTitle: {
+    fontSize: 12,
+    fontWeight: "500",
+    color: "#777",
     textAlign: "center",
   },
-
-  // Active Jobs Styles
-  jobsCard: {
-    marginHorizontal: 20,
-    borderRadius: 12,
-    elevation: 3,
-    marginBottom: 20,
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#333",
+    marginTop: 10,
+    marginBottom: 8,
   },
-  jobTitle: {
-    fontWeight: "600",
+  feedContainer: {
+    flex: 1,
+  },
+  // NotificationCard Styles
+  card: {
+    backgroundColor: "#FFF",
+    borderRadius: 10,
+    padding: 15,
+    marginBottom: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  cardHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 5,
+  },
+  cardDriverName: {
     fontSize: 16,
+    fontWeight: "600",
+    color: "#333",
   },
-  jobIcon: {
-    width: 45,
-    height: 45,
-    borderRadius: 8,
+  statusBadge: {
+    fontSize: 10,
+    fontWeight: "bold",
+    color: "white",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 15,
+    overflow: "hidden",
+  },
+  cardDetail: {
+    fontSize: 13,
+    color: "#666",
+    lineHeight: 20,
+  },
+  cardActions: {
+    flexDirection: "row",
+    marginTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: "#EEE",
+    paddingTop: 10,
+  },
+  actionButton: {
+    flexDirection: "row",
+    paddingVertical: 8,
+    paddingHorizontal: 15,
+    borderRadius: 5,
     marginRight: 10,
     alignItems: "center",
     justifyContent: "center",
   },
-  jobIdText: {
-    fontWeight: "bold",
-    color: "#FFFFFF",
-    fontSize: 10,
+  declineButton: {
+    backgroundColor: "transparent",
+    borderWidth: 1,
+    borderColor: DECLINED_COLOR,
   },
-  jobRight: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  jobDivider: {
-    marginHorizontal: 15,
-  },
-  viewAllButton: {
-    marginVertical: 5,
-    marginHorizontal: 10,
+  actionButtonText: {
+    color: "white",
+    marginLeft: 5,
+    fontWeight: "600",
+    fontSize: 14,
   },
 });
 
-export default App;
+export default GarageOwnerDashboard;

@@ -49,4 +49,6 @@ router.put("/:id", updateGarage);
 // @access  Public
 router.delete("/:id", deleteGarage);
 
+
+
 export default router;

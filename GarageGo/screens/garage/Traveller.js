@@ -6,22 +6,22 @@ import {
   ActivityIndicator,
   SafeAreaView,
   Alert,
+  // Removed unused imports like Button, Card, Title, Paragraph from 'react-native-paper'
 } from "react-native";
-import { Button, Card, Title, Paragraph } from "react-native-paper";
+import { Button, Card, Title, Paragraph } from "react-native-paper"; // Keep using react-native-paper components
 import MapView, { Marker, Polyline } from "react-native-maps";
 import * as Notifications from "expo-notifications";
 import { getGarageByUserId } from "../../services/garageService";
+import { updateNotificationStatusAction } from "../../services/notificationService";
 import { useAuth } from "../../context/AuthContext";
 import axios from "axios";
 import { decode as decodePolyline } from "@mapbox/polyline";
 import { Ionicons } from "@expo/vector-icons";
 
-// Define Constants
 const OSRM_ROUTING_URL = "http://router.project-osrm.org/route/v1/driving/";
-const PRIMARY_COLOR = "#4CAF50"; // Brand color (Green)
+const PRIMARY_COLOR = "#4CAF50";
 const SECONDARY_TEXT_COLOR = "#757575";
 
-// Configure Notification Handler to allow showing alerts in the foreground
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowAlert: true,
@@ -34,6 +34,7 @@ const GarageMapScreen = () => {
   const [garageLocation, setGarageLocation] = useState(null);
   const [garageInfo, setGarageInfo] = useState(null);
   const [driverLocation, setDriverLocation] = useState(null);
+  const [activeNotificationId, setActiveNotificationId] = useState(null);
   const [routeCoordinates, setRouteCoordinates] = useState([]);
   const [routeSummary, setRouteSummary] = useState({
     duration: null,
@@ -44,11 +45,9 @@ const GarageMapScreen = () => {
   const [jobStatus, setJobStatus] = useState("Monitoring");
 
   const mapRef = useRef(null);
-  // Assuming useAuth provides a user object with an identifier
   const { user } = useAuth();
   const userId = user?._id;
 
-  // Helper functions for formatting route data
   const formatDuration = (seconds) => {
     if (!seconds) return "...";
     const minutes = Math.round(seconds / 60);
@@ -61,61 +60,66 @@ const GarageMapScreen = () => {
     return `${km} km`;
   };
 
-  // Handler for marking the job as complete
+  // Function to handle job completion (updated to call API and reset state)
   const handleDriverArrived = () => {
+    if (!activeNotificationId) {
+      Alert.alert("Error", "No active job found to complete.");
+      return;
+    }
+
     Alert.alert(
       "Confirm Arrival",
-      "Has the driver successfully arrived and the vehicle is delivered?",
+      "Has the driver successfully arrived and the vehicle is delivered? This will mark the job as completed.",
       [
-        {
-          text: "Cancel",
-          style: "cancel",
-        },
+        { text: "Cancel", style: "cancel" },
         {
           text: "Confirm & Complete",
-          onPress: () => {
-            setJobStatus("Arrived & Complete");
-            // TODO: Call backend service to update the persistent job status
-            Alert.alert(
-              "Success",
-              "Job status updated to 'Arrived & Complete'."
-            );
-            // Clear markers/route to reflect completion
-            setDriverLocation(null);
-            setRouteCoordinates([]);
+          onPress: async () => {
+            try {
+              // 1. Update status to SERVICE_COMPLETED (using 'complete' alias)
+              await updateNotificationStatusAction(
+                activeNotificationId,
+                "complete"
+              );
+
+              // 2. Update local state
+              setJobStatus("Arrived & Complete");
+              setDriverLocation(null);
+              setRouteCoordinates([]);
+              setActiveNotificationId(null); // Clear active job
+
+              // 3. User feedback
+              Alert.alert(
+                "Success",
+                "Job status updated to 'SERVICE_COMPLETED'."
+              );
+            } catch (error) {
+              console.error("Failed to complete job:", error);
+              Alert.alert(
+                "Error",
+                "Failed to update job status. Please try again."
+              );
+            }
           },
-          style: "default",
         },
       ]
     );
   };
 
-  // Function to fetch the route coordinates and summary from OSRM
   const fetchRoute = async (destination, origin) => {
     if (!origin || !destination) return;
-
-    // OSRM expects coordinates in LON,LAT;LON,LAT format
-    const osrmUrl =
-      `${OSRM_ROUTING_URL}${origin.longitude},${origin.latitude};${destination.longitude},${destination.latitude}` +
-      `?overview=full&geometries=polyline`;
+    const osrmUrl = `${OSRM_ROUTING_URL}${origin.longitude},${origin.latitude};${destination.longitude},${destination.latitude}?overview=full&geometries=polyline`;
 
     try {
       const response = await axios.get(osrmUrl);
       const route = response.data.routes[0];
-      const polyline = route.geometry;
-
-      const decodedCoords = decodePolyline(polyline).map((point) => ({
+      const decodedCoords = decodePolyline(route.geometry).map((point) => ({
         latitude: point[0],
         longitude: point[1],
       }));
-
       setRouteCoordinates(decodedCoords);
-      setRouteSummary({
-        duration: route.duration,
-        distance: route.distance,
-      });
+      setRouteSummary({ duration: route.duration, distance: route.distance });
 
-      // Fit map to show both markers and the route
       if (mapRef.current) {
         mapRef.current.fitToCoordinates([destination, origin], {
           edgePadding: { top: 150, right: 50, bottom: 200, left: 50 },
@@ -129,29 +133,19 @@ const GarageMapScreen = () => {
     }
   };
 
-  // 1. Core function to fetch garage data (initial load or manual refresh)
   const loadInitialData = async () => {
     if (!userId) {
       setIsLoading(false);
       setIsRefreshing(false);
       return;
     }
-
     try {
-      if (!garageLocation) {
-        setIsLoading(true);
-      } else {
-        setIsRefreshing(true); // Use refresh indicator for subsequent loads
-      }
+      setIsLoading(!garageLocation);
+      setIsRefreshing(!!garageLocation);
 
       const response = await getGarageByUserId(userId);
-
-      if (!response || !response.data) {
-        console.error("Failed to retrieve valid garage data.");
-        return;
-      }
-
-      const data = response.data;
+      const data = response?.data;
+      if (!data) return;
 
       if (data.latitude != null && data.longitude != null) {
         const coords = {
@@ -163,15 +157,14 @@ const GarageMapScreen = () => {
           name: data.name || "My Garage",
           address: data.address || "Unknown Address",
         });
-        // Animate to garage location on initial load
         mapRef.current?.animateToRegion(
           { ...coords, latitudeDelta: 0.05, longitudeDelta: 0.05 },
           1000
         );
       }
 
-      // Manually reset tracking status if required after refresh
-      if (!driverLocation && jobStatus !== "Monitoring") {
+      // Ensure local job state reflects 'Monitoring' if no job is active on load
+      if (activeNotificationId === null) {
         setJobStatus("Monitoring");
         setDriverLocation(null);
         setRouteCoordinates([]);
@@ -184,56 +177,107 @@ const GarageMapScreen = () => {
     }
   };
 
-  // Initial Data Load Effect (runs once on mount)
   useEffect(() => {
     loadInitialData();
   }, [userId]);
 
-  // Manual Refresh Handler
   const handleRefresh = () => {
-    if (!isRefreshing && !isLoading) {
-      loadInitialData();
-    }
+    if (!isRefreshing && !isLoading) loadInitialData();
   };
 
-  // 2. Notification Listener for Driver Location Updates
+  // ---------------- Notification Listener (FIXED: Alerts for all incoming jobs) ----------------
   useEffect(() => {
-    // This listener will capture location pings sent as notifications
     const subscription = Notifications.addNotificationReceivedListener(
       (notif) => {
-        const { driverLat, driverLng, jobId } =
+        const { driverLat, driverLng, notificationId } =
           notif.request.content.data || {};
 
-        // Only process if we receive coordinates and the job isn't complete
-        if (driverLat && driverLng && jobStatus !== "Arrived & Complete") {
-          const newDriverLocation = {
-            latitude: parseFloat(driverLat),
-            longitude: parseFloat(driverLng),
-          };
-          setDriverLocation(newDriverLocation);
-          setJobStatus("Driver En Route");
+        if (!notificationId) return;
 
-          // Destination is the GarageLocation, Origin is the DriverLocation
-          if (garageLocation) {
-            fetchRoute(garageLocation, newDriverLocation);
-          }
-        }
+        // *** FIX: REMOVED THE CHECK FOR activeNotificationId ***
+        // This ensures the Alert.alert will be shown for every new job notification.
+
+        setTimeout(() => {
+          Alert.alert(
+            "New Driver Update",
+            "Do you want to accept this driver/job?",
+            [
+              {
+                text: "Decline",
+                onPress: async () => {
+                  try {
+                    await updateNotificationStatusAction(
+                      notificationId,
+                      "decline"
+                    );
+                    console.log("Notification declined:", notificationId);
+                  } catch (err) {
+                    console.error("Failed to decline notification:", err);
+                  }
+                },
+                style: "cancel",
+              },
+              {
+                text: "Accept",
+                onPress: async () => {
+                  // Prevent accepting a new job if one is already active on this screen
+                  if (activeNotificationId) {
+                    Alert.alert(
+                      "Already Active",
+                      "Please complete the current job before accepting a new one on this screen."
+                    );
+                    return;
+                  }
+
+                  try {
+                    await updateNotificationStatusAction(
+                      notificationId,
+                      "accept"
+                    );
+                    console.log("Notification accepted:", notificationId);
+
+                    if (driverLat && driverLng) {
+                      const newDriverLocation = {
+                        latitude: parseFloat(driverLat),
+                        longitude: parseFloat(driverLng),
+                      };
+
+                      // SET ACTIVE JOB ID
+                      setActiveNotificationId(notificationId);
+
+                      setDriverLocation(newDriverLocation);
+                      setJobStatus("Driver En Route");
+
+                      if (garageLocation)
+                        fetchRoute(garageLocation, newDriverLocation);
+                    }
+                  } catch (err) {
+                    console.error("Failed to accept notification:", err);
+                    Alert.alert(
+                      "Acceptance Failed",
+                      "Could not accept job. Server error."
+                    );
+                  }
+                },
+                style: "default",
+              },
+            ],
+            { cancelable: false }
+          );
+        }, 100);
       }
     );
 
-    // ✅ CLEANUP FIX: Using the correct .remove() method on the subscription object.
-    // This ensures no TypeError when the component unmounts.
+    // activeNotificationId is kept in the dependency array to correctly read its current value
     return () => subscription.remove();
-  }, [garageLocation, jobStatus]); // Dependencies ensure fresh state is available inside the listener
+  }, [garageLocation, activeNotificationId]);
 
-  // Re-fetch route if locations load asynchronously (e.g., initial state population)
   useEffect(() => {
     if (garageLocation && driverLocation) {
       fetchRoute(garageLocation, driverLocation);
     }
   }, [garageLocation, driverLocation]);
 
-  // Render loading screen while fetching initial garage location
   if (isLoading) {
     return (
       <View style={styles.loadingContainer}>
@@ -248,11 +292,10 @@ const GarageMapScreen = () => {
       ? "Job Complete"
       : driverLocation
       ? "Driver En Route"
-      : "Awaiting First Location Update";
+      : "Awaiting New Job / Monitoring";
 
-  // Ensure the map can render if garageLocation is null (e.g., if garage data is missing)
   const initialRegion = {
-    latitude: garageLocation?.latitude || 37.78825, // Fallback to SF if no garage
+    latitude: garageLocation?.latitude || 37.78825,
     longitude: garageLocation?.longitude || -122.4324,
     latitudeDelta: 0.05,
     longitudeDelta: 0.05,
@@ -261,17 +304,14 @@ const GarageMapScreen = () => {
   return (
     <SafeAreaView style={styles.container}>
       <MapView ref={mapRef} style={styles.map} initialRegion={initialRegion}>
-        {/* Garage Marker (Destination) */}
         {garageLocation && (
           <Marker
             coordinate={garageLocation}
             title={garageInfo?.name || "Your Garage"}
-            description={"Destination"}
+            description="Destination"
             pinColor="blue"
           />
         )}
-
-        {/* Driver Marker (Source) */}
         {driverLocation && (
           <Marker
             coordinate={driverLocation}
@@ -280,8 +320,6 @@ const GarageMapScreen = () => {
             pinColor="red"
           />
         )}
-
-        {/* Draw the route */}
         {routeCoordinates.length > 0 && (
           <Polyline
             coordinates={routeCoordinates}
@@ -291,7 +329,7 @@ const GarageMapScreen = () => {
         )}
       </MapView>
 
-      {/* --------------------- Top Status Card --------------------- */}
+      {/* Top Status Card */}
       <Card style={styles.topCard}>
         <Card.Content style={styles.topCardContent}>
           <View style={styles.statusHeader}>
@@ -313,7 +351,7 @@ const GarageMapScreen = () => {
             </Button>
           </View>
 
-          {driverLocation && jobStatus !== "Arrived & Complete" && (
+          {driverLocation && jobStatus !== "Arrived & Complete" ? (
             <View style={styles.summaryRow}>
               <View style={styles.summaryItem}>
                 <Ionicons name="time-outline" size={24} color={PRIMARY_COLOR} />
@@ -334,43 +372,38 @@ const GarageMapScreen = () => {
                 <Text style={styles.summaryLabel}>Remaining Distance</Text>
               </View>
             </View>
-          )}
-          {!driverLocation && jobStatus !== "Arrived & Complete" && (
+          ) : (
             <Paragraph style={styles.waitingText}>
-              Tracking session active. Waiting for driver's first location
-              ping...
+              {jobStatus === "Arrived & Complete"
+                ? "Job has been successfully completed."
+                : "Awaiting a new job request..."}
             </Paragraph>
           )}
         </Card.Content>
       </Card>
 
-      {/* --------------------- Bottom Action Card (Job Control) --------------------- */}
-      {jobStatus !== "Arrived & Complete" && (
+      {/* Bottom Action Card */}
+      {jobStatus !== "Arrived & Complete" ? (
         <Card style={styles.bottomCard}>
           <Card.Content>
             <Title style={styles.jobControlTitle}>Job Control</Title>
             <Paragraph style={styles.jobControlParagraph}>
               Update job status once the vehicle has been successfully dropped
-              off.
+              off at your garage.
             </Paragraph>
-
             <Button
               mode="contained"
               icon="check-circle-outline"
               onPress={handleDriverArrived}
               style={[styles.actionButton, { backgroundColor: PRIMARY_COLOR }]}
               labelStyle={styles.actionButtonLabel}
-              // Only enable button if we have a driver location (they started the job)
-              disabled={!driverLocation}
+              disabled={!driverLocation || !activeNotificationId} // Disabled if no job is active
             >
               Driver Arrived / Complete Job
             </Button>
           </Card.Content>
         </Card>
-      )}
-
-      {/* Show completion message when done */}
-      {jobStatus === "Arrived & Complete" && (
+      ) : (
         <Card style={styles.bottomCardCompleted}>
           <Card.Content style={{ alignItems: "center" }}>
             <Ionicons name="checkmark-circle" size={36} color={PRIMARY_COLOR} />
@@ -385,7 +418,6 @@ const GarageMapScreen = () => {
   );
 };
 
-// --------------------- Styles for Presentation ---------------------
 const styles = StyleSheet.create({
   container: { flex: 1 },
   map: { ...StyleSheet.absoluteFillObject },
@@ -396,8 +428,6 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
   },
   loadingText: { marginTop: 10, fontSize: 16, color: "#555" },
-
-  // Top Card Styles
   topCard: {
     position: "absolute",
     top: 10,
@@ -411,9 +441,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 4,
   },
-  topCardContent: {
-    paddingVertical: 15,
-  },
+  topCardContent: { paddingVertical: 15 },
   statusHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -421,14 +449,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     marginBottom: 10,
   },
-  statusTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#333",
-  },
-  refreshButton: {
-    minWidth: 40,
-  },
+  statusTitle: { fontSize: 18, fontWeight: "bold", color: "#333" },
+  refreshButton: { minWidth: 40 },
   waitingText: {
     fontSize: 14,
     color: SECONDARY_TEXT_COLOR,
@@ -440,23 +462,14 @@ const styles = StyleSheet.create({
     justifyContent: "space-around",
     width: "100%",
   },
-  summaryItem: {
-    alignItems: "center",
-    paddingHorizontal: 15,
-  },
+  summaryItem: { alignItems: "center", paddingHorizontal: 15 },
   summaryText: {
     fontSize: 20,
     fontWeight: "bold",
     color: "#212121",
     marginTop: 5,
   },
-  summaryLabel: {
-    fontSize: 12,
-    color: SECONDARY_TEXT_COLOR,
-    marginTop: 2,
-  },
-
-  // Bottom Card Styles (Active Tracking)
+  summaryLabel: { fontSize: 12, color: SECONDARY_TEXT_COLOR, marginTop: 2 },
   bottomCard: {
     position: "absolute",
     bottom: 0,
@@ -469,7 +482,6 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
     paddingVertical: 10,
   },
-  // Bottom Card Styles (Completed)
   bottomCardCompleted: {
     position: "absolute",
     bottom: 0,
@@ -479,7 +491,7 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     elevation: 8,
-    backgroundColor: "#E8F5E9", // Light green background
+    backgroundColor: "#E8F5E9",
     paddingVertical: 15,
   },
   jobControlTitle: {
@@ -502,10 +514,7 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
     borderRadius: 8,
   },
-  actionButtonLabel: {
-    fontSize: 16,
-    fontWeight: "bold",
-  },
+  actionButtonLabel: { fontSize: 16, fontWeight: "bold" },
 });
 
 export default GarageMapScreen;

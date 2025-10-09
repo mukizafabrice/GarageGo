@@ -3,6 +3,11 @@ import * as Device from "expo-device";
 import { Alert, Platform } from "react-native";
 import { axiosInstance } from "./apiConfig";
 
+// --- Configuration ---
+const NOTIFICATION_BASE_URL = "/notifications";
+
+// --- Permissions and Tokens ---
+
 export const requestUserPermission = async () => {
   if (Device.isDevice) {
     const { status: existingStatus } =
@@ -24,21 +29,25 @@ export const requestUserPermission = async () => {
     return token; // Send to your backend
   } else {
     Alert.alert("Must use physical device for Push Notifications");
+    return null; // Return null if not on a physical device
   }
 };
+
+// --- Listeners (App Foreground/Interaction) ---
 
 export const listenToForegroundMessages = () => {
   const subscription = Notifications.addNotificationReceivedListener(
     (notification) => {
+      // This simple listener only shows an alert when the app is foregrounded.
+      // The main screen (e.g., GarageMapScreen) should implement the logic
+      // to call updateNotificationStatus('id', 'SENT_RECEIVED') if needed.
       Alert.alert("New Notification", notification.request.content.body || "");
     }
   );
 
-  // Return the subscription object so the caller can clean it up
   return subscription;
 };
 
-// Notifications.addNotificationResponseReceivedListener returns a Subscription object
 export const handleNotificationOpenedApp = () => {
   const subscription = Notifications.addNotificationResponseReceivedListener(
     (response) => {
@@ -46,32 +55,24 @@ export const handleNotificationOpenedApp = () => {
     }
   );
 
-  // Return the subscription object so the caller can clean it up
   return subscription;
 };
 
-//notification crud operations
-
-const NOTIFICATION_BASE_URL = "/notifications";
+// --- CRUD Operations ---
 
 export const getAllNotifications = async () => {
   try {
     const response = await axiosInstance.get(NOTIFICATION_BASE_URL);
-    return response.data; // Includes success, count, and data array
+    return response.data;
   } catch (error) {
     throw error.response?.data || error;
   }
 };
 
-/**
- * Retrieves a single notification log by its ID.
- * @param {string} id - The MongoDB ObjectId of the notification log.
- * @returns {Promise<Object>} A promise that resolves to a single notification object.
- */
 export const getNotificationById = async (id) => {
   try {
     const response = await axiosInstance.get(`${NOTIFICATION_BASE_URL}/${id}`);
-    return response.data; // Includes success and data object
+    return response.data;
   } catch (error) {
     throw error.response?.data || error;
   }
@@ -82,20 +83,55 @@ export const getNotificationsByGarageId = async (garageId) => {
     const response = await axiosInstance.get(
       `${NOTIFICATION_BASE_URL}/garage/${garageId}`
     );
-    return response.data; // Includes success, count, and data array
+    return response.data;
   } catch (error) {
     throw error.response?.data || error;
   }
 };
 
-export const updateNotificationStatus = async (id, updateData) => {
+/**
+ * Updates the notification status on the backend.
+ * This is used for simple status updates like 'SENT_RECEIVED'.
+ *
+ * NOTE: The backend controller expects the status in the body under the key 'newStatus'.
+ *
+ * @param {string} id - The notification ID.
+ * @param {string} statusValue - The new status (e.g., 'SENT_RECEIVED').
+ */
+export const updateNotificationStatus = async (id, statusValue) => {
   try {
-    const response = await axiosInstance.put(
-      `${NOTIFICATION_BASE_URL}/${id}`,
-      updateData
-    );
-    return response.data; // Includes success and updated data object
+    const response = await axiosInstance.put(`${NOTIFICATION_BASE_URL}/${id}`, {
+      newStatus: statusValue, // CORRECTED: Send as 'newStatus'
+    });
+    return response.data;
   } catch (error) {
+    // Re-throw the structured error from the backend (e.g., "Missing newStatus field")
+    throw error.response?.data || error;
+  }
+};
+
+/**
+ * Updates the notification status using the dynamic action route (e.g., /:id/accept).
+ * This is used for driver actions like ACCEPT, DECLINE, COMPLETE.
+ */
+export const updateNotificationStatusAction = async (id, action) => {
+  const validActions = ["accept", "decline", "complete"];
+  if (!validActions.includes(action.toLowerCase())) {
+    throw new Error(
+      "Invalid action. Must be one of: accept, decline, complete."
+    );
+  }
+
+  try {
+    const { data } = await axiosInstance.put(
+      `${NOTIFICATION_BASE_URL}/${id}/${action}`
+    );
+    return data;
+  } catch (error) {
+    console.error(
+      "Error updating notification status:",
+      error.response?.data || error.message
+    );
     throw error.response?.data || error;
   }
 };
@@ -116,7 +152,7 @@ export const deleteNotificationsByGarageId = async (garageId) => {
     const response = await axiosInstance.delete(
       `${NOTIFICATION_BASE_URL}/garage/${garageId}`
     );
-    return response.data; // Includes success and deletedCount
+    return response.data;
   } catch (error) {
     throw error.response?.data || error;
   }
@@ -125,94 +161,8 @@ export const deleteNotificationsByGarageId = async (garageId) => {
 export const deleteAllNotifications = async () => {
   try {
     const response = await axiosInstance.delete(NOTIFICATION_BASE_URL);
-    return response.data; // Includes success and deletedCount
-  } catch (error) {
-    throw error.response?.data || error;
-  }
-};
-
-/**
- * Retrieves a single notification log by its ID.
- * @param {string} id - The MongoDB ObjectId of the notification log.
- * @returns {Promise<Object>} A promise that resolves to a single notification object.
- */
-
-/**
- * Retrieves all notification logs associated with a specific garage ID.
- * @param {string} garageId - The MongoDB ObjectId of the Garage.
- * @returns {Promise<Object>} A promise that resolves to a list of notifications.
- */
-
-/**
- * Generic function to update a notification's status or Expo ticket details.
- * Maps to PUT /notifications/:id
- * @param {string} id - The MongoDB ObjectId of the notification log.
- * @param {Object} updateData - E.g., { newStatus: "SENT_SUCCESS", newExpoTicket: {} }
- * @returns {Promise<Object>} A promise that resolves to the updated notification object.
- */
-
-// =========================================================================
-// NEW SERVICE LIFECYCLE FUNCTIONS
-// =========================================================================
-
-/**
- * Updates the notification status to GARAGE_ACCEPTED.
- * Maps to PUT /notifications/:id/accept
- * @param {string} id - The MongoDB ObjectId of the notification log.
- * @returns {Promise<Object>} A promise that resolves to the updated notification object.
- */
-export const acceptNotification = async (id) => {
-  try {
-    const response = await axiosInstance.put(
-      `${NOTIFICATION_BASE_URL}/${id}/accept`
-      // No body needed, status change is implicit on the backend
-    );
     return response.data;
   } catch (error) {
     throw error.response?.data || error;
   }
 };
-
-/**
- * Updates the notification status to GARAGE_DECLINED.
- * Maps to PUT /notifications/:id/decline
- * @param {string} id - The MongoDB ObjectId of the notification log.
- * @returns {Promise<Object>} A promise that resolves to the updated notification object.
- */
-export const declineNotification = async (id) => {
-  try {
-    const response = await axiosInstance.put(
-      `${NOTIFICATION_BASE_URL}/${id}/decline`
-    );
-    return response.data;
-  } catch (error) {
-    throw error.response?.data || error;
-  }
-};
-
-/**
- * Updates the notification status to SERVICE_COMPLETED.
- * Maps to PUT /notifications/:id/complete
- * @param {string} id - The MongoDB ObjectId of the notification log.
- * @returns {Promise<Object>} A promise that resolves to the updated notification object.
- */
-export const completeNotification = async (id) => {
-  try {
-    const response = await axiosInstance.put(
-      `${NOTIFICATION_BASE_URL}/${id}/complete`
-    );
-    return response.data;
-  } catch (error) {
-    throw error.response?.data || error;
-  }
-};
-
-// =========================================================================
-// DELETE FUNCTIONS
-// =========================================================================
-
-/**
- * Deletes a single notification log by its ID.
- * @param {string} id - The MongoDB ObjectId of the notification log.
- * @returns {Promise<Object>} A promise that resolves when the log is deleted.
- */
