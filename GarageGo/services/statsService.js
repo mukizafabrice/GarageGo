@@ -1,34 +1,113 @@
 import { axiosInstance } from "./apiConfig";
 
-// Base URL for the statistics module, matching the setup in server.js
-const STATS_BASE_URL = "/stats";
+/**
+ * Fetch count of new requests (SENT_SUCCESS)
+ * GET /:garageId/count/new-requests
+ */
+export const fetchNewRequestsCount = async (garageId) => {
+  try {
+    const response = await axiosInstance.get(
+      `/stats/${garageId}/count/new-requests`
+    );
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching new requests count:", error);
+    throw error;
+  }
+};
 
 /**
- * Fetches all aggregated dashboard statistics for a specific garage.
- * @param {string} garageId - The ID of the garage whose data is being requested.
- * @returns {Promise<Object>} A promise that resolves to the structured dashboard data.
+ * Fetch count of active jobs (GARAGE_ACCEPTED)
+ * GET /:garageId/count/active-jobs
  */
-export const fetchDashboardStats = async (garageId) => {
-  if (!garageId) {
-    throw new Error("Garage ID is required to fetch dashboard statistics.");
-  }
-
+export const fetchActiveJobsCount = async (garageId) => {
   try {
-    const response = await axiosInstance.get(`${STATS_BASE_URL}/dashboard`, {
-      // Pass the garageId as a query parameter
-      params: {
-        garageId: garageId,
-      },
-    });
-
-    // The backend returns { success: true, data: {...} }
-    return response.data.data;
-  } catch (error) {
-    console.error(
-      "Error fetching dashboard statistics:",
-      error.response?.data || error.message
+    const response = await axiosInstance.get(
+      `/stats/${garageId}/count/active-jobs`
     );
-    // Re-throw the structured error from the backend for component handling
-    throw error.response?.data || error;
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching active jobs count:", error);
+    throw error;
+  }
+};
+
+/**
+ * Fetch garage acceptance rate
+ * GET /:garageId/acceptance-rate
+ */
+export const fetchAcceptanceRate = async (garageId) => {
+  try {
+    const response = await axiosInstance.get(
+      `/stats/${garageId}/acceptance-rate`
+    );
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching acceptance rate:", error);
+    throw error;
+  }
+};
+
+/**
+ * Fetch notifications sent successfully in last 24 hours
+ * GET /:garageId/sent-success
+ */
+export const fetchSentSuccessNotifications = async (garageId) => {
+  try {
+    const response = await axiosInstance.get(`/stats/${garageId}/sent-success`);
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching sent-success notifications:", error);
+    throw error;
+  }
+};
+
+/**
+ * Fetch garage accepted notifications in last 24 hours
+ * GET /:garageId/garage-accepted
+ */
+export const fetchGarageAcceptedNotifications = async (garageId) => {
+  try {
+    const response = await axiosInstance.get(
+      `/stats/${garageId}/garage-accepted`
+    );
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching garage-accepted notifications:", error);
+    throw error;
+  }
+};
+
+/**
+ * Fetch service completed notifications in last 24 hours
+ * GET /:garageId/service-completed
+ */
+export const fetchServiceCompletedNotifications = async (garageId) => {
+  try {
+    const response = await axiosInstance.get(
+      `/stats/${garageId}/service-completed`
+    );
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching service-completed notifications:", error);
+    throw error;
+  }
+};
+
+/**
+ * Update a notification's status to GARAGE_ACCEPTED or GARAGE_DECLINED
+ * @param {string} notificationId - The ID of the notification
+ * @param {"GARAGE_ACCEPTED" | "GARAGE_DECLINED"} status - The new status
+ * @returns Updated notification data
+ */
+export const updateNotificationStatus = async (id, notificationStatus) => {
+  try {
+    const response = await axiosInstance.put(`/stats/${id}/status`, {
+      notificationStatus,
+    });
+    return response.data;
+  } catch (error) {
+    console.error("Error updating notification status:", error);
+    throw error;
   }
 };

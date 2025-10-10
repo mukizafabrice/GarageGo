@@ -226,6 +226,7 @@ const LandingPage = () => {
         accuracy: Location.Accuracy.High,
       });
       const currentLocation = loc.coords;
+      console.log("Current Location:", currentLocation);
       setUserLocation(currentLocation);
 
       // If user data is missing, prompt to log in/register

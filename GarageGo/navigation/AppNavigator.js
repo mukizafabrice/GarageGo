@@ -22,7 +22,7 @@ import GarageHome from "../screens/garage/GarageHome";
 import UserManagementScreen from "../screens/garage/UserManagementScreen";
 import NotificationsManager from "../screens/garage/NotificationsOwner";
 import GarageProfile from "../screens/garage/GarageProfile";
-
+import DriverLocation from "../screens/garage/DriverLocation";
 // --- User Screens
 import DriverScreen from "../screens/staff/DriverScreen";
 import StaffSettingsScreen from "../screens/staff/StaffSettingsScreen";
@@ -314,6 +314,17 @@ const AppNavigator = () => {
             options={{
               headerShown: true,
               title: "Profile",
+              headerStyle: { backgroundColor: "#4CAF50" },
+              headerTintColor: "#fff",
+            }}
+          />
+          <Stack.Screen
+            name="driverLocation"
+            component={DriverLocation}
+            options={{
+              headerShown: true,
+              title: "Driver Location",
+
               headerStyle: { backgroundColor: "#4CAF50" },
               headerTintColor: "#fff",
             }}

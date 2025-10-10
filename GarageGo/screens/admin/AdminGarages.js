@@ -148,26 +148,6 @@ const AdminGarages = ({ navigation, onRefresh }) => {
             titleStyle={styles.listItemTitle}
             descriptionStyle={styles.listItemDescription}
           />
-          {item.fcmToken && (
-            <List.Item
-              title="FCM Token"
-              description={item.fcmToken}
-              left={(props) => (
-                <List.Icon {...props} icon="message-processing" />
-              )}
-              style={styles.listItem}
-              titleStyle={styles.listItemTitle}
-              descriptionStyle={styles.listItemDescription}
-            />
-          )}
-          <List.Item
-            title="User ID"
-            description={item.userId.name || item.userId._id}
-            left={(props) => <List.Icon {...props} icon="account" />}
-            style={styles.listItem}
-            titleStyle={styles.listItemTitle}
-            descriptionStyle={styles.listItemDescription}
-          />
         </Card.Content>
       )}
     </Card>

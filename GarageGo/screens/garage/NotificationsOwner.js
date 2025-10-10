@@ -30,19 +30,55 @@ const PRIMARY_COLOR = "#4CAF50";
 
 // Helper for status color
 const statusColor = (status, colors) => {
+  // Define explicit color constants for clarity
+  const WARNING_ORANGE = "#FFA000";
+  const ERROR_RED = colors.error;
+  const NEUTRAL_GREY = "#BDBDBD";
+  const SUCCESS_GREEN = PRIMARY_COLOR; // Assuming PRIMARY_COLOR is your success color
+
   switch (status) {
+    // ----------------------------------------------------
+    // --- Initial Sending Outcome Statuses ---
+    // ----------------------------------------------------
     case "SENT_SUCCESS":
-      return PRIMARY_COLOR;
+    case "SENT_RECEIVED":
+      // Request sent or received, waiting for garage response
+      return WARNING_ORANGE;
+
     case "NO_GARAGE_FOUND":
-      return colors.error;
-    case "INVALID_TOKEN":
-      return "#FFA000"; // Orange/Warning
     case "SEND_FAILED":
     case "DRIVER_DATA_ERROR":
-      return colors.error;
+      // Definitive failure states for the request
+      return ERROR_RED;
+
+    case "INVALID_TOKEN":
+      // A technical warning, often treated as an error by the driver
+      return WARNING_ORANGE;
+
     case "SERVER_ERROR":
-      return "#BDBDBD"; // Grey/Neutral
+      // Unknown technical issue
+      return NEUTRAL_GREY;
+
+    // ----------------------------------------------------
+    // --- Service & Response Statuses (Actionable by Garage) ---
+    // ----------------------------------------------------
+    case "GARAGE_ACCEPTED":
+      // Success state: A garage is coming
+      return SUCCESS_GREEN;
+
+    case "GARAGE_DECLINED":
+    case "DRIVER_CANCELED":
+    case "EXPIRED":
+      // Terminal failure states for the service attempt
+      return ERROR_RED;
+
+    case "SERVICE_COMPLETED":
+      // Final, successful resolution state
+      // FIX: Changed from NEUTRAL_GREY to SUCCESS_GREEN (PRIMARY_COLOR)
+      return SUCCESS_GREEN;
+
     default:
+      // Fallback for unknown status
       return colors.backdrop;
   }
 };

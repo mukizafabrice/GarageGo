@@ -6,6 +6,7 @@ import {
   getSentSuccessNotifications,
   getGarageAcceptedNotifications,
   getServiceCompletedNotifications,
+  updateNotificationStatus,
 } from "../controllers/StatisticsController.js";
 
 const router = express.Router();
@@ -18,5 +19,6 @@ router.get("/:garageId/acceptance-rate", calculateAcceptanceRate);
 router.get("/:garageId/sent-success", getSentSuccessNotifications);
 router.get("/:garageId/garage-accepted", getGarageAcceptedNotifications);
 router.get("/:garageId/service-completed", getServiceCompletedNotifications);
+router.put("/:id/status", updateNotificationStatus);
 
 export default router;
