@@ -11,7 +11,7 @@ import {
   Alert,
   ActivityIndicator, // Added for loading state
 } from "react-native";
-import * as Notifications from 'expo-notifications'; // Replaced Firebase Messaging with Expo Notifications
+import * as Notifications from "expo-notifications"; // Replaced Firebase Messaging with Expo Notifications
 import { useNavigation } from "@react-navigation/native";
 import { useAuth } from "../context/AuthContext";
 import AuthService from "../services/AuthService";
@@ -39,7 +39,9 @@ const getFCMToken = async () => {
     }
 
     if (finalStatus !== "granted") {
-      console.warn("Failed to get push token! Notifications permission denied.");
+      console.warn(
+        "Failed to get push token! Notifications permission denied."
+      );
       return null;
     }
 
@@ -55,34 +57,34 @@ const getFCMToken = async () => {
 
 // --- FIX: Robust Login Wrapper for Non-Standard Server Responses ---
 const attemptLogin = async (email, password) => {
-    try {
-        // Assume the initial login only sends credentials
-        const result = await AuthService.login(email, password, null, null);
-        
-        // If the service succeeded (no internal throw), return the result.
-        if (result && result.token) {
-            return result;
-        }
-        // This handles standard success responses
-        throw new Error("Login failed: Missing token in response.");
+  try {
+    // Assume the initial login only sends credentials
+    const result = await AuthService.login(email, password, null, null);
 
-    } catch (error) {
-        // This attempts to extract the successful data even if the service function threw a 400 error.
-        // The service throws an 'Error' which may contain the original response data.
-        const originalData = error.response?.data || error.data; 
-        
-        // Check if the thrown error contained successful login data.
-        if (originalData && originalData.token && originalData._id) {
-            console.warn("Non-Standard Server Response: Login succeeded despite HTTP status error. Data recovered.");
-            return originalData; // Return the successfully recovered data
-        }
-
-        // Re-throw the original error if no successful data was found.
-        throw error;
+    // If the service succeeded (no internal throw), return the result.
+    if (result && result.token) {
+      return result;
     }
-}
-// -----------------------------------------------------------------
+    // This handles standard success responses
+    throw new Error("Login failed: Missing token in response.");
+  } catch (error) {
+    // This attempts to extract the successful data even if the service function threw a 400 error.
+    // The service throws an 'Error' which may contain the original response data.
+    const originalData = error.response?.data || error.data;
 
+    // Check if the thrown error contained successful login data.
+    if (originalData && originalData.token && originalData._id) {
+      console.warn(
+        "Non-Standard Server Response: Login succeeded despite HTTP status error. Data recovered."
+      );
+      return originalData; // Return the successfully recovered data
+    }
+
+    // Re-throw the original error if no successful data was found.
+    throw error;
+  }
+};
+// -----------------------------------------------------------------
 
 const CustomButton = ({
   onPress,
@@ -105,8 +107,7 @@ const CustomButton = ({
   </TouchableOpacity>
 );
 
-const Login = () => {
-  const navigation = useNavigation();
+const Login = ({ navigation }) => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -127,53 +128,60 @@ const Login = () => {
       // --- Step 1: Initial Login & Authentication (Always needed) ---
       // USE THE ROBUST WRAPPER HERE to prevent the main thread from catching a non-standard 400
       const initialResult = await attemptLogin(email, password);
-      
+
       const userId = initialResult._id;
       const userRole = initialResult.role;
       // finalResult is guaranteed to hold the initial, valid session token data.
-      let finalResult = initialResult; 
+      let finalResult = initialResult;
 
       // Check if the user is a role that requires a linked garage
       if (userRole === "garageOwner" || userRole === "user") {
         // Check if token retrieval failed for garage-dependent roles
         if (!fcmToken) {
-          Alert.alert("Token Error", "Could not retrieve device token. This is required for push notifications. Please check app permissions or network.");
+          Alert.alert(
+            "Token Error",
+            "Could not retrieve device token. This is required for push notifications. Please check app permissions or network."
+          );
           setIsLoading(false);
           return;
         }
 
         // --- Step 2: Fetch Garage ID ---
-        const garageResponse = await getGarageByUserId(userId); 
+        const garageResponse = await getGarageByUserId(userId);
         console.log("Fetched garage response:", garageResponse);
-        
-        if (garageResponse && garageResponse.success && garageResponse.data && garageResponse.data._id) {
+
+        if (
+          garageResponse &&
+          garageResponse.success &&
+          garageResponse.data &&
+          garageResponse.data._id
+        ) {
           const garageId = garageResponse.data._id;
-          
+
           // --- Step 3: Final Login (Token Registration on Backend) ---
-          // ULTRA-AGGRESSIVE ISOLATION FIX: Wrap in setTimeout(0) to execute on the next tick, 
+          // ULTRA-AGGRESSIVE ISOLATION FIX: Wrap in setTimeout(0) to execute on the next tick,
           // completely detaching it from the current thread's try/catch block.
           setTimeout(() => {
-            AuthService.login(
-                email, 
-                password,
-                fcmToken,
-                garageId
-            )
-            .then(() => {
+            AuthService.login(email, password, fcmToken, garageId)
+              .then(() => {
                 // Success: Log the success internally, but don't block the main thread.
-                console.log("FCM Token update request sent successfully (ULTRA ISOLATED).");
-            })
-            .catch((updateError) => {
+                console.log(
+                  "FCM Token update request sent successfully (ULTRA ISOLATED)."
+                );
+              })
+              .catch((updateError) => {
                 // Failure: Log the full error for debugging and show a non-critical alert.
-                console.warn("FCM Token update request failed silently (ULTRA ISOLATED). Error:", updateError.message || "Unknown error during token update.");
+                console.warn(
+                  "FCM Token update request failed silently (ULTRA ISOLATED). Error:",
+                  updateError.message || "Unknown error during token update."
+                );
                 // Only alert if it's a critical push feature
                 Alert.alert(
-                    "Token Update Warning", 
-                    "Successfully logged in, but the push notification registration failed. Notifications may not work."
+                  "Token Update Warning",
+                  "Successfully logged in, but the push notification registration failed. Notifications may not work."
                 );
-            });
+              });
           }, 0); // Execute on the next event loop tick
-          
         } else {
           // Logged-in staff/owner is not linked to a garage or data was malformed.
           Alert.alert(
@@ -185,22 +193,24 @@ const Login = () => {
         }
 
         // The application execution proceeds immediately from here, without awaiting the result of Step 3.
-      } 
-      
+      }
+
       // --- Step 4: Finalize Login (for all roles) ---
       // finalResult is guaranteed to hold the initial, valid session token data.
-      
-      // AGGRESSIVE DEBUGGING: Log the FULL DATA STRUCTURE before calling the login context function.
-      console.log("Attempting final session login with full data:", finalResult);
 
-      // MANDATORY FIX: The context's login function must be changed to accept the full response object, 
+      // AGGRESSIVE DEBUGGING: Log the FULL DATA STRUCTURE before calling the login context function.
+      console.log(
+        "Attempting final session login with full data:",
+        finalResult
+      );
+
+      // MANDATORY FIX: The context's login function must be changed to accept the full response object,
       // not just email and password.
       login(finalResult);
-
     } catch (error) {
       // Catch network or true authentication errors from Step 1 or Step 4 failure
       const errorDetail = error.message || "An unknown error occurred.";
-      
+
       // LOGGING THE CRITICAL ERROR FOR DIAGNOSTICS
       console.error("Critical Login Flow Failure:", error);
 
@@ -271,7 +281,7 @@ const Login = () => {
 
             {/* Forgot Password */}
             <TouchableOpacity
-              onPress={handleForgotPassword}
+              onPress={() => navigation.navigate("ForgotPassword")}
               style={styles.forgotPasswordLink}
             >
               <Text style={styles.forgotPasswordText}>Forgot Password?</Text>

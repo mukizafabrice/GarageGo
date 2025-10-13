@@ -188,22 +188,6 @@ const NotificationCard = ({ notif, onClear, colors, PRIMARY_COLOR }) => {
             </Text>
           </View>
 
-          {/* Expo Ticket (Only if exists) */}
-          {notif.expoTicket && (
-            <View style={styles.detailRow}>
-              <MaterialCommunityIcons
-                name="ticket-confirmation"
-                size={18}
-                color={PRIMARY_COLOR}
-                style={styles.detailIcon}
-              />
-              <Text style={styles.detailText} numberOfLines={1}>
-                {/* Use String() defensively */}
-                Ticket ID: {String(notif.expoTicket)}
-              </Text>
-            </View>
-          )}
-
           {/* Timestamp */}
           <View style={styles.detailRow}>
             <MaterialCommunityIcons

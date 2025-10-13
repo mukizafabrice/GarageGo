@@ -56,28 +56,24 @@ const AdminDashboard = ({ navigation }) => {
         status: "Success",
       }));
 
-      const internalActivities = [
-        {
-          id: "internal-1",
-          title: "Admin Login Successful",
-          time: new Date(Date.now() - 60000 * 1),
-          icon: "login",
-          status: "Info",
-        },
-        {
-          id: "internal-2",
-          title: "Database Backup Completed",
-          time: new Date(Date.now() - 60000 * 50),
-          icon: "database-check",
-          status: "Success",
-        },
-      ];
+      // const internalActivities = [
+      //   {
+      //     id: "internal-1",
+      //     title: "Admin Login Successful",
+      //     time: new Date(Date.now() - 60000 * 1),
+      //     icon: "login",
+      //     status: "Info",
+      //   },
+      //   {
+      //     id: "internal-2",
+      //     title: "Database Backup Completed",
+      //     time: new Date(Date.now() - 60000 * 50),
+      //     icon: "database-check",
+      //     status: "Success",
+      //   },
+      // ];
 
-      const allActivities = [
-        ...userActivities,
-        ...garageActivities,
-        ...internalActivities,
-      ]
+      const allActivities = [...userActivities, ...garageActivities]
         .sort((a, b) => new Date(b.time) - new Date(a.time))
         .slice(0, 5);
 

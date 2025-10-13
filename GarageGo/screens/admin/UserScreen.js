@@ -201,14 +201,6 @@ const UserScreen = () => {
             titleStyle={styles.listItemTitle}
             descriptionStyle={styles.listItemDescription}
           />
-          <List.Item
-            title="ID"
-            description={item._id}
-            left={(props) => <List.Icon {...props} icon="identifier" />}
-            style={styles.listItem}
-            titleStyle={styles.listItemTitle}
-            descriptionStyle={styles.listItemDescription}
-          />
         </Card.Content>
       )}
     </Card>
@@ -244,7 +236,7 @@ const UserScreen = () => {
               containerStyle={styles.filterDropdownContainer}
               placeholder="Filter by Role"
               style={{ borderColor: PRIMARY_COLOR }}
-              zIndex={3000} // Ensure filter dropdown is always on top
+              zIndex={3000}
             />
           </View>
           {/* --- End Role Filter Dropdown --- */}

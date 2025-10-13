@@ -4,10 +4,10 @@ const AuthService = {
   login: async (email, password, fcmToken, garageId) => {
     try {
       const response = await axiosInstance.post("/user/login", {
-      email,
-      password,
-      fcmToken,
-      garageId,
+        email,
+        password,
+        fcmToken,
+        garageId,
       });
       return response.data;
     } catch (error) {
@@ -20,13 +20,46 @@ const AuthService = {
 
   forgotPassword: async (email) => {
     try {
-      const response = await axiosInstance.post("/forgot-password", { email });
+      const response = await axiosInstance.post("/user/forgot-password", {
+        email,
+      });
       return response.data;
     } catch (error) {
       console.error("Forgot password error:", error.message);
       throw new Error(
         error.response?.data?.message ||
           "Failed to send password reset link. Please try again."
+      );
+    }
+  },
+  verifyOtp: async (email, otp) => {
+    try {
+      const response = await axiosInstance.post("/user/verify-otp", {
+        email,
+        otp,
+      });
+      return response.data;
+    } catch (error) {
+      console.error("Verify OTP error:", error.message);
+      throw new Error(
+        error.response?.data?.message ||
+          "Failed to verify OTP. Please try again."
+      );
+    }
+  },
+  resetPassword: async (email, otp, newPassword) => {
+    try {
+      const response = await axiosInstance.post("/user/reset-password", {
+        email,
+        otp,
+        newPassword,
+      });
+      return response.data;
+    } catch (error) {
+      console.error("Reset password error:", error.message);
+      throw new Error(
+        error.response?.data?.message ||
+          "Failed to reset password. Please try again."
       );
     }
   },

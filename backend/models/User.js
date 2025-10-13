@@ -22,6 +22,18 @@ const userSchema = new mongoose.Schema(
       enum: ["admin", "user", "garageOwner"],
       default: "garageOwner",
     },
+    resetPasswordToken: {
+      type: String, // store OTP as string (numeric but easier to handle as string)
+      required: false,
+    },
+    resetPasswordExpires: {
+      type: Date, // expiry time
+      required: false,
+    },
+    resetPasswordVerified: {
+      type: Boolean, // optional: mark OTP as used
+      default: false,
+    },
   },
   { timestamps: true }
 );

@@ -3,6 +3,8 @@ import User from "../models/User.js";
 import Garage from "../models/Garage.js";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+import crypto from "crypto";
+import nodemailer from "nodemailer";
 
 export const registerAdmin = async (req, res) => {
   try {
@@ -101,7 +103,7 @@ export const loginAdmin = async (req, res) => {
 
 export const getUsers = async (req, res) => {
   try {
-    const users = await User.find().select("-password");
+    const users = await User.find().select("-password").sort({ createdAt: -1 });
     res.status(200).json({ success: true, data: users });
   } catch (error) {
     res.status(500).json({
@@ -288,5 +290,107 @@ export const updateUserPassword = async (req, res) => {
       message: "Server error updating password.",
       details: error.message,
     });
+  }
+};
+
+// ✅ Secure OTP generator
+const generateOTP = () => {
+  return crypto.randomInt(100000, 999999).toString(); // 6-digit OTP
+};
+
+// Forgot Password - generate OTP and send email
+export const forgotPassword = async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const otp = generateOTP();
+    user.resetPasswordToken = otp;
+    user.resetPasswordExpires = Date.now() + 15 * 60 * 1000; // 15 minutes
+    user.resetPasswordVerified = false;
+    await user.save();
+
+    // Send email with OTP
+    const transporter = nodemailer.createTransport({
+      service: "gmail", // change to your provider
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS,
+      },
+    });
+
+    await transporter.sendMail({
+      from: `"GarageGo" <${process.env.EMAIL_USER}>`,
+      to: user.email,
+      subject: "Password Reset OTP",
+      text: `Your OTP code is ${otp}. It will expire in 15 minutes.`,
+    });
+
+    res.json({ message: "OTP sent to email" });
+  } catch (error) {
+    console.error("Forgot password error:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+// Verify OTP (optional step)
+export const verifyOtp = async (req, res) => {
+  try {
+    const { email, otp } = req.body;
+
+    const user = await User.findOne({
+      email,
+      resetPasswordToken: otp,
+      resetPasswordExpires: { $gt: Date.now() }, // not expired
+    });
+
+    if (!user) {
+      return res.status(400).json({ message: "Invalid or expired OTP" });
+    }
+
+    user.resetPasswordVerified = true;
+    await user.save();
+
+    res.json({ message: "OTP verified successfully" });
+  } catch (error) {
+    console.error("Verify OTP error:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+// Reset Password
+export const resetPassword = async (req, res) => {
+  try {
+    const { email, otp, newPassword } = req.body;
+
+    const user = await User.findOne({
+      email,
+      resetPasswordToken: otp,
+      resetPasswordExpires: { $gt: Date.now() },
+    });
+
+    if (!user) {
+      return res.status(400).json({ message: "Invalid or expired OTP" });
+    }
+
+    // Hash new password
+    const salt = await bcrypt.genSalt(10);
+    user.password = await bcrypt.hash(newPassword, salt);
+
+    // Clear reset fields
+    user.resetPasswordToken = undefined;
+    user.resetPasswordExpires = undefined;
+    user.resetPasswordVerified = false;
+
+    await user.save();
+
+    res.json({ message: "Password reset successful" });
+  } catch (error) {
+    console.error("Reset password error:", error);
+    res.status(500).json({ message: "Server error" });
   }
 };

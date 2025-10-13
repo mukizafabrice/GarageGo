@@ -68,12 +68,9 @@ const statusColor = (status, colors) => {
     case "GARAGE_DECLINED":
     case "DRIVER_CANCELED":
     case "EXPIRED":
-      // Terminal failure states for the service attempt
       return ERROR_RED;
 
     case "SERVICE_COMPLETED":
-      // Final, successful resolution state
-      // FIX: Changed from NEUTRAL_GREY to SUCCESS_GREEN (PRIMARY_COLOR)
       return SUCCESS_GREEN;
 
     default:
@@ -186,22 +183,6 @@ const NotificationCard = ({ notif, onClear, colors, PRIMARY_COLOR }) => {
               Assigned Garage: {renderAssignedGarage()}
             </Text>
           </View>
-
-          {/* Expo Ticket (Only if exists) */}
-          {notif.expoTicket && (
-            <View style={styles.detailRow}>
-              <MaterialCommunityIcons
-                name="ticket-confirmation"
-                size={18}
-                color={PRIMARY_COLOR}
-                style={styles.detailIcon}
-              />
-              <Text style={styles.detailText} numberOfLines={1}>
-                {/* Use String() defensively */}
-                Ticket ID: {String(notif.expoTicket)}
-              </Text>
-            </View>
-          )}
 
           {/* Timestamp */}
           <View style={styles.detailRow}>

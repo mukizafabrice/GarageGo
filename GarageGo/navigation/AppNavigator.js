@@ -22,8 +22,9 @@ import GarageHome from "../screens/garage/GarageHome";
 import UserManagementScreen from "../screens/garage/UserManagementScreen";
 import NotificationsManager from "../screens/garage/NotificationsOwner";
 import GarageProfile from "../screens/garage/GarageProfile";
-import DriverLocation from "../screens/garage/DriverLocation";
+
 // --- User Screens
+import HomeScreen from "../screens/staff/HomeScreen";
 import DriverScreen from "../screens/staff/DriverScreen";
 import StaffSettingsScreen from "../screens/staff/StaffSettingsScreen";
 import StaffProfile from "../screens/staff/StaffProfile";
@@ -31,6 +32,7 @@ import StaffProfile from "../screens/staff/StaffProfile";
 
 import Profile from "../screens/common/Profile";
 // import Notifications from "../screens/common/Notifications";
+import DriverLocation from "../screens/common/DriverLocation";
 import Help from "../screens/common/HelpSupportScreen";
 import LandingPage from "../screens/LandingPage";
 import ChangePassword from "../screens/common/ChangePassword";
@@ -189,16 +191,16 @@ const UserTabs = () => (
       tabBarShowLabel: true,
     }}
   >
-    {/* <Tab.Screen
-      name="UserHome"
-      component={UserHome}
+    <Tab.Screen
+      name="HomeScreen"
+      component={HomeScreen}
       options={{
         tabBarLabel: "Home",
         tabBarIcon: ({ color, size }) => (
-          <MaterialCommunityIcons name="account" color={color} size={size} />
+          <MaterialCommunityIcons name="home" color={color} size={size} />
         ),
       }}
-    /> */}
+    />
     <Tab.Screen
       name="Driver"
       component={DriverScreen}
@@ -318,17 +320,6 @@ const AppNavigator = () => {
               headerTintColor: "#fff",
             }}
           />
-          <Stack.Screen
-            name="driverLocation"
-            component={DriverLocation}
-            options={{
-              headerShown: true,
-              title: "Driver Location",
-
-              headerStyle: { backgroundColor: "#4CAF50" },
-              headerTintColor: "#fff",
-            }}
-          />
         </>
       ) : (
         // Default to user tabs
@@ -402,6 +393,17 @@ const AppNavigator = () => {
         options={{
           headerShown: true,
           title: "Privacy Policy",
+          headerStyle: { backgroundColor: "#4CAF50" },
+          headerTintColor: "#fff",
+        }}
+      />
+      <Stack.Screen
+        name="driverLocation"
+        component={DriverLocation}
+        options={{
+          headerShown: true,
+          title: "Driver Location",
+
           headerStyle: { backgroundColor: "#4CAF50" },
           headerTintColor: "#fff",
         }}

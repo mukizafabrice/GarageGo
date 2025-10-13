@@ -383,7 +383,6 @@ const GarageOwnerDashboard = ({ navigation }) => {
             day: "numeric",
           })}
         </Text>
-        <Text style={{ textAlign: "center" }}>Daily Statistics</Text>
       </View>
 
       {/* 2. Summary Grid (Metrics) */}
