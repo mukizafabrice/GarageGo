@@ -5,6 +5,8 @@ import {
   ScrollView,
   Alert,
   TouchableOpacity,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import {
   Text,
@@ -270,7 +272,6 @@ const UserManagementScreen = ({ navigation }) => {
           </View>
         )}
       </ScrollView>
-
       <FAB
         icon="plus"
         label="Add User"
@@ -278,63 +279,83 @@ const UserManagementScreen = ({ navigation }) => {
         onPress={openAddUserModal}
         color="#FFFFFF"
       />
-
       {/* Edit Dialog */}
       <Portal>
-        <Dialog
-          visible={editDialogVisible}
-          onDismiss={() => setEditDialogVisible(false)}
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          keyboardVerticalOffset={Platform.OS === "ios" ? 80 : 0}
         >
-          <Dialog.Title>Edit User</Dialog.Title>
-          <Dialog.Content>
-            <TextInput
-              label="Name"
-              value={editName}
-              onChangeText={setEditName}
-              style={{ marginBottom: 10 }}
-            />
-            <TextInput
-              label="Email"
-              value={editEmail}
-              onChangeText={setEditEmail}
-              style={{ marginBottom: 10 }}
-              autoCapitalize="none"
-            />
-          </Dialog.Content>
-          <Dialog.Actions>
-            <Button onPress={() => setEditDialogVisible(false)}>Cancel</Button>
-            <Button onPress={handleSaveEdit}>Save</Button>
-          </Dialog.Actions>
-        </Dialog>
+          <Dialog
+            visible={editDialogVisible}
+            onDismiss={() => setEditDialogVisible(false)}
+          >
+            <Dialog.Title>Edit User</Dialog.Title>
+            <Dialog.Content>
+              <TextInput
+                label="Name"
+                value={editName}
+                onChangeText={setEditName}
+                style={{ marginBottom: 10 }}
+              />
+              <TextInput
+                label="Email"
+                value={editEmail}
+                onChangeText={setEditEmail}
+                style={{ marginBottom: 10 }}
+                autoCapitalize="none"
+              />
+            </Dialog.Content>
+            <Dialog.Actions>
+              <Button onPress={() => setEditDialogVisible(false)}>
+                Cancel
+              </Button>
+              <Button onPress={handleSaveEdit}>Save</Button>
+            </Dialog.Actions>
+          </Dialog>
+        </KeyboardAvoidingView>
       </Portal>
-
       {/* Add Dialog */}
+
       <Portal>
-        <Dialog
-          visible={addDialogVisible}
-          onDismiss={() => setAddDialogVisible(false)}
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          keyboardVerticalOffset={Platform.OS === "ios" ? 80 : 0}
         >
-          <Dialog.Title>Add User</Dialog.Title>
-          <Dialog.Content>
-            <TextInput
-              label="Name"
-              value={addName}
-              onChangeText={setAddName}
-              style={{ marginBottom: 10 }}
-            />
-            <TextInput
-              label="Email"
-              value={addEmail}
-              onChangeText={setAddEmail}
-              style={{ marginBottom: 10 }}
-              autoCapitalize="none"
-            />
-          </Dialog.Content>
-          <Dialog.Actions>
-            <Button onPress={() => setAddDialogVisible(false)}>Cancel</Button>
-            <Button onPress={handleAddUser}>Add</Button>
-          </Dialog.Actions>
-        </Dialog>
+          <Dialog
+            visible={addDialogVisible}
+            onDismiss={() => setAddDialogVisible(false)}
+          >
+            <Dialog.Title>Add User</Dialog.Title>
+            <Dialog.Content>
+              <ScrollView
+                contentContainerStyle={styles.scrollContainer}
+                keyboardShouldPersistTaps="handled"
+              >
+                <TextInput
+                  label="Name"
+                  value={addName}
+                  onChangeText={setAddName}
+                  style={styles.input}
+                />
+                <TextInput
+                  label="Email"
+                  value={addEmail}
+                  onChangeText={setAddEmail}
+                  style={styles.input}
+                  autoCapitalize="none"
+                />
+              </ScrollView>
+            </Dialog.Content>
+            <Dialog.Actions>
+              <Button onPress={() => setAddDialogVisible(false)}>Cancel</Button>
+              <Button onPress={() => handleAddUser(addName, addEmail)}>
+                Add
+              </Button>
+            </Dialog.Actions>
+          </Dialog>
+        </KeyboardAvoidingView>
       </Portal>
     </View>
   );
