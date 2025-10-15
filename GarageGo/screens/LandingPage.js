@@ -11,13 +11,17 @@ import {
   ActivityIndicator,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { Button, Card, Title, Paragraph } from "react-native-paper";
+import { Button, Card } from "react-native-paper";
 import MapView, { Marker, Polyline } from "react-native-maps";
 import * as Location from "expo-location";
 import * as Notifications from "expo-notifications";
 import { useNavigation } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
-import { findNearestGarage, findNearbyGarages, sendRequestToGarage } from "../services/garageService.js";
+import {
+  findNearestGarage,
+  findNearbyGarages,
+  sendRequestToGarage,
+} from "../services/garageService.js";
 import { openWhatsAppWithGarage } from "../utils/whatsapp.js";
 import axios from "axios";
 import { decode as decodePolyline } from "@mapbox/polyline";
@@ -79,7 +83,8 @@ const LandingPage = () => {
   // Request and store FCM token for the user
   const requestUserFcmToken = async () => {
     try {
-      const { status: existingStatus } = await Notifications.getPermissionsAsync();
+      const { status: existingStatus } =
+        await Notifications.getPermissionsAsync();
       let finalStatus = existingStatus;
 
       if (existingStatus !== "granted") {
@@ -115,7 +120,11 @@ const LandingPage = () => {
 
   const handleWhatsAppGarage = () => {
     if (nearestGarage && userData?.name && userData?.phoneNumber) {
-      openWhatsAppWithGarage(nearestGarage, userData.name, userData.phoneNumber);
+      openWhatsAppWithGarage(
+        nearestGarage,
+        userData.name,
+        userData.phoneNumber
+      );
     } else {
       Alert.alert("Error", "Garage information or user data not available.");
     }
@@ -149,7 +158,7 @@ const LandingPage = () => {
     setSelectedGarage(garage);
     setShowGarageSelection(false);
     setNearestGarage(garage);
-    
+
     // Fetch route to selected garage
     if (userLocation) {
       fetchRouteAndAdjustMap(userLocation, garage);
@@ -323,8 +332,8 @@ const LandingPage = () => {
             { text: "Cancel", style: "cancel" },
             {
               text: "Open Settings",
-              onPress: () => Linking.openURL("app-settings:")
-            }
+              onPress: () => Linking.openURL("app-settings:"),
+            },
           ]
         );
         setFindingGarage(false);
@@ -341,8 +350,8 @@ const LandingPage = () => {
             { text: "Cancel", style: "cancel" },
             {
               text: "Open Settings",
-              onPress: () => Linking.openURL("app-settings:")
-            }
+              onPress: () => Linking.openURL("app-settings:"),
+            },
           ]
         );
         setFindingGarage(false);
@@ -360,7 +369,10 @@ const LandingPage = () => {
         currentLocation = loc.coords;
         console.log("High accuracy location obtained:", currentLocation);
       } catch (highAccuracyError) {
-        console.warn("High accuracy failed, trying balanced:", highAccuracyError);
+        console.warn(
+          "High accuracy failed, trying balanced:",
+          highAccuracyError
+        );
         try {
           // Fallback to balanced accuracy
           const loc = await Location.getCurrentPositionAsync({
@@ -408,7 +420,7 @@ const LandingPage = () => {
         const garages = response.data.garages;
         setNearbyGarages(garages);
         setShowGarageSelection(true);
-        
+
         // Show the first garage as default selection
         if (garages.length > 0) {
           setSelectedGarage(garages[0]);
@@ -437,7 +449,9 @@ const LandingPage = () => {
       try {
         // Fetch User Data (safe operation)
         const storedName = await AsyncStorage.getItem("user_registration_name");
-        const storedPhone = await AsyncStorage.getItem("user_registration_phone");
+        const storedPhone = await AsyncStorage.getItem(
+          "user_registration_phone"
+        );
         const storedFcmToken = await AsyncStorage.getItem("user_fcm_token");
 
         if (storedName && storedPhone) {
@@ -455,7 +469,6 @@ const LandingPage = () => {
 
         // NOTE: Location is now requested only when user taps "Find Nearby Garages"
         // This prevents app crashes when location permission is denied
-
       } catch (err) {
         console.error("Initialization Error:", err);
         setError("Failed to initialize app. Please restart.");
@@ -545,31 +558,30 @@ const LandingPage = () => {
           }
           showsUserLocation={userLocation ? true : false}
         >
-            {/* Markers for all nearby garages */}
-            {nearbyGarages.map((garage, index) => (
-              <Marker
-                key={garage.id}
-                coordinate={{
-                  latitude: garage.latitude,
-                  longitude: garage.longitude,
-                }}
-                title={garage.name}
-                description={`${garage.distance}km away`}
-                pinColor={selectedGarage?.id === garage.id ? "red" : "blue"}
-                onPress={() => handleGarageSelection(garage)}
-              />
-            ))}
+          {/* Markers for all nearby garages */}
+          {nearbyGarages.map((garage, index) => (
+            <Marker
+              key={garage.id}
+              coordinate={{
+                latitude: garage.latitude,
+                longitude: garage.longitude,
+              }}
+              title={garage.name}
+              description={`${garage.distance}km away`}
+              pinColor={selectedGarage?.id === garage.id ? "red" : "blue"}
+              onPress={() => handleGarageSelection(garage)}
+            />
+          ))}
 
-            {/* Draw the route */}
-            {routeCoordinates.length > 0 && (
-              <Polyline
-                coordinates={routeCoordinates}
-                strokeWidth={5}
-                strokeColor={PRIMARY_COLOR}
-              />
-            )}
-          </MapView>
-        )}
+          {/* Draw the route */}
+          {routeCoordinates.length > 0 && (
+            <Polyline
+              coordinates={routeCoordinates}
+              strokeWidth={5}
+              strokeColor={PRIMARY_COLOR}
+            />
+          )}
+        </MapView>
 
         {/* REFRESH/RE-SEARCH BUTTON (Floating) */}
         <TouchableOpacity
@@ -583,58 +595,70 @@ const LandingPage = () => {
             <Ionicons name="refresh" size={28} color="#FFFFFF" />
           )}
         </TouchableOpacity>
-
         {/* TOP ACTION CARD (Before Search) */}
         {!nearestGarage && (
           <Card style={styles.actionCard}>
             <Card.Content>
-              <Title style={styles.actionTitle}>Need a Fix?</Title>
-              <Paragraph style={styles.actionParagraph}>
-                Tap the button to find nearby garages and choose the best one for you.
-              </Paragraph>
+              <Text style={styles.actionTitle}>Need a Fix?</Text>
+              <Text style={styles.actionParagraph}>
+                Tap the button to find nearby garages and choose the best one
+                for you.
+              </Text>
               <Button
                 mode="contained"
                 onPress={fetchLocationAndSearch}
                 style={styles.findButton}
                 labelStyle={styles.findButtonLabel}
                 loading={findingGarage}
-                disabled={findingGarage || !userLocation}
+                disabled={findingGarage}
               >
                 {findingGarage ? "Searching..." : "Find Nearby Garages"}
               </Button>
             </Card.Content>
           </Card>
         )}
-
         {/* GARAGE SELECTION CARD */}
         {showGarageSelection && nearbyGarages.length > 0 && (
           <Card style={styles.selectionCard}>
             <Card.Content>
-              <Title style={styles.selectionTitle}>
-                <Ionicons name="list-outline" size={20} color={PRIMARY_COLOR} />{" "}
-                Choose a Garage ({nearbyGarages.length} found)
-              </Title>
+              <View style={styles.selectionTitle}>
+                <Ionicons name="list-outline" size={20} color={PRIMARY_COLOR} />
+                <Text style={styles.selectionTitleText}>
+                  Choose a Garage ({nearbyGarages.length} found)
+                </Text>
+              </View>
               <View style={styles.garageList}>
                 {nearbyGarages.slice(0, 3).map((garage) => (
                   <TouchableOpacity
                     key={garage.id}
                     style={[
                       styles.garageItem,
-                      selectedGarage?.id === garage.id && styles.selectedGarageItem
+                      selectedGarage?.id === garage.id &&
+                        styles.selectedGarageItem,
                     ]}
                     onPress={() => handleGarageSelection(garage)}
                   >
                     <View style={styles.garageInfo}>
                       <Text style={styles.garageName}>{garage.name}</Text>
-                      <Text style={styles.garageDistance}>{garage.distance}km away</Text>
+                      <Text style={styles.garageDistance}>
+                        {garage.distance}km away
+                      </Text>
                       <Text style={styles.garageAddress} numberOfLines={1}>
                         {garage.address || "Address not available"}
                       </Text>
                     </View>
-                    <Ionicons 
-                      name={selectedGarage?.id === garage.id ? "radio-button-on" : "radio-button-off"} 
-                      size={20} 
-                      color={selectedGarage?.id === garage.id ? PRIMARY_COLOR : "#ccc"} 
+                    <Ionicons
+                      name={
+                        selectedGarage?.id === garage.id
+                          ? "radio-button-on"
+                          : "radio-button-off"
+                      }
+                      size={20}
+                      color={
+                        selectedGarage?.id === garage.id
+                          ? PRIMARY_COLOR
+                          : "#ccc"
+                      }
                     />
                   </TouchableOpacity>
                 ))}
@@ -647,19 +671,18 @@ const LandingPage = () => {
             </Card.Content>
           </Card>
         )}
-
         {/* BOTTOM INFO CARD (After Search) */}
         {nearestGarage && (
           <Card style={styles.infoCard}>
             <Card.Content>
-              <Title style={styles.infoTitle}>
+              <View style={styles.infoTitle}>
                 <Ionicons
                   name="car-sport-outline"
                   size={24}
                   color={PRIMARY_COLOR}
-                />{" "}
-                {nearestGarage.name}
-              </Title>
+                />
+                <Text style={styles.infoTitleText}>{nearestGarage.name}</Text>
+              </View>
 
               <View style={styles.infoDetails}>
                 <View style={styles.detailItem}>
@@ -668,9 +691,9 @@ const LandingPage = () => {
                     size={16}
                     color={SECONDARY_TEXT_COLOR}
                   />
-                  <Paragraph style={styles.detailText}>
+                  <Text style={styles.detailText}>
                     {nearestGarage.address || "Address not listed"}
-                  </Paragraph>
+                  </Text>
                 </View>
                 <View style={styles.detailItem}>
                   <Ionicons
@@ -678,9 +701,9 @@ const LandingPage = () => {
                     size={16}
                     color={SECONDARY_TEXT_COLOR}
                   />
-                  <Paragraph style={styles.detailText}>
+                  <Text style={styles.detailText}>
                     Rating: {nearestGarage.rating || "N/A"}
-                  </Paragraph>
+                  </Text>
                 </View>
               </View>
 
@@ -841,12 +864,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 15,
   },
   infoTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: "#212121",
     marginBottom: 10,
     flexDirection: "row",
     alignItems: "center",
+  },
+  infoTitleText: {
+    fontSize: 20,
+    fontWeight: "bold",
+    color: "#212121",
+    marginLeft: 10,
   },
   infoDetails: {
     flexDirection: "row",
@@ -941,14 +967,17 @@ const styles = StyleSheet.create({
     maxHeight: height * 0.4,
   },
   selectionTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: PRIMARY_COLOR,
-    textAlign: "center",
     marginBottom: 15,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
+  },
+  selectionTitleText: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: PRIMARY_COLOR,
+    textAlign: "center",
+    marginLeft: 10,
   },
   garageList: {
     maxHeight: height * 0.25,

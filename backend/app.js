@@ -42,7 +42,7 @@ app.use("/api/reports", reportRoutes);
 
 // Root route
 app.get("/", (req, res) => {
-  res.send("GarageGo Backend is running");
+  res.send("GarageGo Backend is running Fabrice");
 });
 
 // Start server
