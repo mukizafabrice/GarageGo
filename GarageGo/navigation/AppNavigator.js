@@ -1,5 +1,5 @@
 import React from "react";
-import { View, ActivityIndicator, StyleSheet, Platform, Dimensions } from "react-native";
+import { View, ActivityIndicator, StyleSheet, Platform } from "react-native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
@@ -52,12 +52,6 @@ const UserHome = () => (
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
-// Get device dimensions to detect home indicator
-const { height: screenHeight } = Dimensions.get('window');
-
-// Detect if device has home indicator (iPhone X and newer)
-const hasHomeIndicator = Platform.OS === 'ios' && screenHeight >= 812;
-
 const tabBarBaseStyle = {
   backgroundColor: "#fff",
   height: Platform.OS === "ios" ? 80 : 70,
@@ -66,15 +60,6 @@ const tabBarBaseStyle = {
   borderTopWidth: 0.5,
   borderTopColor: "#ccc",
   elevation: 5,
-  // Position the tab bar above system navigation
-  position: 'absolute',
-  bottom: 0,
-  left: 0,
-  right: 0,
-  // Ensure it doesn't overlap with system navigation
-  ...(Platform.OS === "ios" && {
-    paddingBottom: hasHomeIndicator ? 34 : 20, // Account for home indicator
-  }),
 };
 
 const tabLabelStyle = {
@@ -95,7 +80,6 @@ const AdminTabs = () => (
       headerTitleStyle: { fontWeight: "bold" },
       tabBarShowLabel: true,
     }}
-    safeAreaInsets={{ bottom: hasHomeIndicator ? 34 : 0 }}
   >
     <Tab.Screen
       name="Home"
@@ -157,7 +141,6 @@ const GarageOwnerTabs = () => (
       headerTitleStyle: { fontWeight: "bold" },
       tabBarShowLabel: true,
     }}
-    safeAreaInsets={{ bottom: hasHomeIndicator ? 34 : 0 }}
   >
     <Tab.Screen
       name="Home"
@@ -209,7 +192,6 @@ const UserTabs = () => (
       headerTitleStyle: { fontWeight: "bold" },
       tabBarShowLabel: true,
     }}
-    safeAreaInsets={{ bottom: hasHomeIndicator ? 34 : 0 }}
   >
     <Tab.Screen
       name="HomeScreen"
@@ -306,6 +288,7 @@ const AppNavigator = () => {
               headerTintColor: "#fff",
             }}
           />
+
           <Stack.Screen
             name="AdminReports"
             component={AdminReportsScreen}

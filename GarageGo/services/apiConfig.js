@@ -3,8 +3,8 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 
 // This file centralizes your API configuration, making it easy to manage.
 
-const API_BASE_URL = "http://172.20.10.2:5000/api";
-// const API_BASE_URL = "https://garagego-1.onrender.com/api";
+// const API_BASE_URL = "http://172.20.10.2:5000/api";
+const API_BASE_URL = "https://garagego-1.onrender.com/api";
 
 const axiosInstance = axios.create({
   baseURL: API_BASE_URL,
