@@ -65,6 +65,11 @@ const NotificationSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.Mixed,
       default: null,
     },
+    userFcmToken: {
+      // FCM token of the user (driver) who made the request - for reverse notifications
+      type: String,
+      default: null,
+    },
   },
   {
     timestamps: true,

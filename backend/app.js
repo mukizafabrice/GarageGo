@@ -7,6 +7,7 @@ import userRoutes from "./routes/userRoutes.js";
 import admin from "./config/firebase.js";
 import notificationRoutes from "./routes/notificationRoutes.js";
 import statisticsRoutes from "./routes/StatisticsRoutes.js";
+import reportRoutes from "./routes/reportRoutes.js";
 
 // Load environment variables
 dotenv.config();
@@ -37,6 +38,7 @@ app.use("/api/garages", garageRoutes);
 app.use("/api/user", userRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/stats", statisticsRoutes);
+app.use("/api/reports", reportRoutes);
 
 // Root route
 app.get("/", (req, res) => {

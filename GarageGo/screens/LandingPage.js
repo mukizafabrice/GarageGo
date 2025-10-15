@@ -17,7 +17,8 @@ import * as Location from "expo-location";
 import * as Notifications from "expo-notifications";
 import { useNavigation } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
-import { findNearestGarage } from "../services/garageService.js";
+import { findNearestGarage, findNearbyGarages, sendRequestToGarage } from "../services/garageService.js";
+import { openWhatsAppWithGarage } from "../utils/whatsapp.js";
 import axios from "axios";
 import { decode as decodePolyline } from "@mapbox/polyline";
 
@@ -55,11 +56,16 @@ const Header = ({ onProfilePress }) => (
 const LandingPage = () => {
   const [userLocation, setUserLocation] = useState(null);
   const [nearestGarage, setNearestGarage] = useState(null);
+  const [nearbyGarages, setNearbyGarages] = useState([]);
+  const [selectedGarage, setSelectedGarage] = useState(null);
+  const [showGarageSelection, setShowGarageSelection] = useState(false);
   const [routeCoordinates, setRouteCoordinates] = useState([]);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true); // Initial load (for location)
   const [findingGarage, setFindingGarage] = useState(false); // Button loading state
+  const [sendingRequest, setSendingRequest] = useState(false); // Request sending state
   const [userData, setUserData] = useState(null);
+  const [userFcmToken, setUserFcmToken] = useState(null);
 
   const mapRef = useRef(null);
   const navigation = useNavigation();
@@ -70,6 +76,35 @@ const LandingPage = () => {
     navigation.navigate("Login");
   };
 
+  // Request and store FCM token for the user
+  const requestUserFcmToken = async () => {
+    try {
+      const { status: existingStatus } = await Notifications.getPermissionsAsync();
+      let finalStatus = existingStatus;
+
+      if (existingStatus !== "granted") {
+        const { status } = await Notifications.requestPermissionsAsync();
+        finalStatus = status;
+      }
+
+      if (finalStatus === "granted") {
+        // Get the FCM token
+        const tokenData = await Notifications.getExpoPushTokenAsync();
+        const token = tokenData.data;
+
+        // Store in AsyncStorage
+        await AsyncStorage.setItem("user_fcm_token", token);
+        setUserFcmToken(token);
+
+        console.log("User FCM token stored:", token);
+      } else {
+        console.log("Notification permission denied for user");
+      }
+    } catch (error) {
+      console.error("Error getting FCM token:", error);
+    }
+  };
+
   const handleCallGarage = () => {
     if (nearestGarage?.phone) {
       Linking.openURL(`tel:${nearestGarage.phone}`);
@@ -78,9 +113,20 @@ const LandingPage = () => {
     }
   };
 
+  const handleWhatsAppGarage = () => {
+    if (nearestGarage && userData?.name && userData?.phoneNumber) {
+      openWhatsAppWithGarage(nearestGarage, userData.name, userData.phoneNumber);
+    } else {
+      Alert.alert("Error", "Garage information or user data not available.");
+    }
+  };
+
   // Function to clear the search results and return to the default state
   const handleNewSearch = () => {
     setNearestGarage(null);
+    setNearbyGarages([]);
+    setSelectedGarage(null);
+    setShowGarageSelection(false);
     setRouteCoordinates([]);
     setError(null);
 
@@ -95,6 +141,56 @@ const LandingPage = () => {
         },
         500
       );
+    }
+  };
+
+  // Handle garage selection from the list
+  const handleGarageSelection = (garage) => {
+    setSelectedGarage(garage);
+    setShowGarageSelection(false);
+    setNearestGarage(garage);
+    
+    // Fetch route to selected garage
+    if (userLocation) {
+      fetchRouteAndAdjustMap(userLocation, garage);
+    }
+  };
+
+  // Send request to the selected garage
+  const handleSendRequest = async () => {
+    if (!selectedGarage || !userData?.name || !userData?.phoneNumber) {
+      Alert.alert("Error", "Missing garage selection or user data.");
+      return;
+    }
+
+    setSendingRequest(true);
+    try {
+      const response = await sendRequestToGarage(
+        selectedGarage.id,
+        userLocation.latitude,
+        userLocation.longitude,
+        userData.name,
+        userData.phoneNumber,
+        userFcmToken // Include user's FCM token for reverse notifications
+      );
+
+      if (response.success) {
+        Alert.alert(
+          "Request Sent!",
+          `Your request has been sent to ${selectedGarage.name}. They will contact you shortly.`,
+          [{ text: "OK", onPress: handleNewSearch }]
+        );
+
+        // Schedule notification
+        scheduleGarageFoundNotification(selectedGarage.name);
+      } else {
+        Alert.alert("Error", response.message || "Failed to send request.");
+      }
+    } catch (error) {
+      console.error("Error sending request:", error);
+      Alert.alert("Error", "Failed to send request. Please try again.");
+    } finally {
+      setSendingRequest(false);
     }
   };
 
@@ -210,23 +306,81 @@ const LandingPage = () => {
   const fetchLocationAndSearch = async () => {
     setFindingGarage(true);
     setNearestGarage(null);
+    setNearbyGarages([]);
+    setSelectedGarage(null);
+    setShowGarageSelection(false);
     setRouteCoordinates([]);
     setError(null);
 
     try {
-      // 1. Get User Location
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== "granted") {
-        setError("Location access denied. Please enable location services.");
+      // 1. Check Location Services
+      const locationServicesEnabled = await Location.hasServicesEnabledAsync();
+      if (!locationServicesEnabled) {
+        Alert.alert(
+          "Location Services Disabled",
+          "Please enable location services in your device settings to find nearby garages.",
+          [
+            { text: "Cancel", style: "cancel" },
+            {
+              text: "Open Settings",
+              onPress: () => Linking.openURL("app-settings:")
+            }
+          ]
+        );
         setFindingGarage(false);
         return;
       }
 
-      const loc = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.High,
-      });
-      const currentLocation = loc.coords;
-      console.log("Current Location:", currentLocation);
+      // 2. Request Location Permission
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert(
+          "Location Permission Required",
+          "Location permission is needed to find nearby garages. Please grant permission in your device settings.",
+          [
+            { text: "Cancel", style: "cancel" },
+            {
+              text: "Open Settings",
+              onPress: () => Linking.openURL("app-settings:")
+            }
+          ]
+        );
+        setFindingGarage(false);
+        return;
+      }
+
+      // 3. Get User Location with Fallback Accuracy
+      let currentLocation;
+      try {
+        // Try high accuracy first
+        const loc = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.High,
+          timeout: 15000, // 15 second timeout
+        });
+        currentLocation = loc.coords;
+        console.log("High accuracy location obtained:", currentLocation);
+      } catch (highAccuracyError) {
+        console.warn("High accuracy failed, trying balanced:", highAccuracyError);
+        try {
+          // Fallback to balanced accuracy
+          const loc = await Location.getCurrentPositionAsync({
+            accuracy: Location.Accuracy.Balanced,
+            timeout: 10000, // 10 second timeout
+          });
+          currentLocation = loc.coords;
+          console.log("Balanced accuracy location obtained:", currentLocation);
+        } catch (balancedError) {
+          console.error("Both accuracy modes failed:", balancedError);
+          Alert.alert(
+            "Location Error",
+            "Unable to get your location. Please check your GPS signal and try again.",
+            [{ text: "OK", style: "default" }]
+          );
+          setFindingGarage(false);
+          return;
+        }
+      }
+
       setUserLocation(currentLocation);
 
       // If user data is missing, prompt to log in/register
@@ -239,27 +393,32 @@ const LandingPage = () => {
         return;
       }
 
-      // 2. Find Nearest Garage
-      const response = await findNearestGarage(
+      // 2. Find Nearby Garages (without notifications)
+      const response = await findNearbyGarages(
         currentLocation.latitude,
         currentLocation.longitude,
-        userData.name,
-        userData.phoneNumber
+        25, // 25km radius
+        10, // limit to 10 garages
+        false, // don't send notifications yet
+        null,
+        null
       );
 
-      if (response.success && response.nearestGarage) {
-        const garage = response.nearestGarage;
-        setNearestGarage(garage);
-
-        // Trigger the notification
-        scheduleGarageFoundNotification(garage.name);
-
-        // 3. Fetch OSRM Route and adjust map
-        await fetchRouteAndAdjustMap(currentLocation, garage);
+      if (response.success && response.data.garages.length > 0) {
+        const garages = response.data.garages;
+        setNearbyGarages(garages);
+        setShowGarageSelection(true);
+        
+        // Show the first garage as default selection
+        if (garages.length > 0) {
+          setSelectedGarage(garages[0]);
+          setNearestGarage(garages[0]);
+          await fetchRouteAndAdjustMap(currentLocation, garages[0]);
+        }
       } else {
         Alert.alert(
           "No Garages Found",
-          response.message || "Failed to find nearest garage in your area."
+          response.message || "No garages found within 25km of your location."
         );
       }
     } catch (err) {
@@ -272,32 +431,34 @@ const LandingPage = () => {
 
   // --- USE EFFECTS ---
 
-  // 1. Initial Location Fetch and User Data Load
+  // 1. Initial App Setup (User Data & FCM Token Only)
   useEffect(() => {
     const initializeApp = async () => {
       try {
-        // Fetch User Data
+        // Fetch User Data (safe operation)
         const storedName = await AsyncStorage.getItem("user_registration_name");
-        const storedPhone = await AsyncStorage.getItem(
-          "user_registration_phone"
-        );
+        const storedPhone = await AsyncStorage.getItem("user_registration_phone");
+        const storedFcmToken = await AsyncStorage.getItem("user_fcm_token");
+
         if (storedName && storedPhone) {
           setUserData({ name: storedName, phoneNumber: storedPhone });
         }
 
-        // Fetch Initial Location
-        const { status } = await Location.requestForegroundPermissionsAsync();
-        if (status !== "granted") {
-          setError("Location access denied. Map cannot show current position.");
-          return;
+        if (storedFcmToken) {
+          setUserFcmToken(storedFcmToken);
         }
-        const loc = await Location.getCurrentPositionAsync({
-          accuracy: Location.Accuracy.High,
-        });
-        setUserLocation(loc.coords);
+
+        // Request FCM token if not already stored (safe operation)
+        if (!storedFcmToken) {
+          await requestUserFcmToken();
+        }
+
+        // NOTE: Location is now requested only when user taps "Find Nearby Garages"
+        // This prevents app crashes when location permission is denied
+
       } catch (err) {
         console.error("Initialization Error:", err);
-        setError("Error getting location. Please check settings.");
+        setError("Failed to initialize app. Please restart.");
       } finally {
         setLoading(false);
       }
@@ -352,7 +513,7 @@ const LandingPage = () => {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={PRIMARY_COLOR} />
-        <Text style={styles.loadingText}>Fetching your location...</Text>
+        <Text style={styles.loadingText}>Loading GarageGo...</Text>
       </View>
     );
   }
@@ -363,34 +524,41 @@ const LandingPage = () => {
 
       <View style={styles.mapContainer}>
         {/* MAP VIEW */}
-        {userLocation || error ? (
-          <MapView
-            ref={mapRef}
-            style={styles.map}
-            initialRegion={
-              userLocation
-                ? {
-                    latitude: userLocation.latitude,
-                    longitude: userLocation.longitude,
-                    latitudeDelta: LATITUDE_DELTA,
-                    longitudeDelta: LONGITUDE_DELTA,
-                  }
-                : undefined
-            }
-            showsUserLocation={true}
-          >
-            {/* Marker for the nearest garage */}
-            {nearestGarage && (
+        <MapView
+          ref={mapRef}
+          style={styles.map}
+          initialRegion={
+            userLocation
+              ? {
+                  latitude: userLocation.latitude,
+                  longitude: userLocation.longitude,
+                  latitudeDelta: LATITUDE_DELTA,
+                  longitudeDelta: LONGITUDE_DELTA,
+                }
+              : {
+                  // Default to a general location if no user location (e.g., Kigali, Rwanda)
+                  latitude: -1.9579,
+                  longitude: 30.1127,
+                  latitudeDelta: LATITUDE_DELTA,
+                  longitudeDelta: LONGITUDE_DELTA,
+                }
+          }
+          showsUserLocation={userLocation ? true : false}
+        >
+            {/* Markers for all nearby garages */}
+            {nearbyGarages.map((garage, index) => (
               <Marker
+                key={garage.id}
                 coordinate={{
-                  latitude: nearestGarage.latitude,
-                  longitude: nearestGarage.longitude,
+                  latitude: garage.latitude,
+                  longitude: garage.longitude,
                 }}
-                title={nearestGarage.name}
-                description={nearestGarage.address || "Nearest Garage"}
-                pinColor="blue"
+                title={garage.name}
+                description={`${garage.distance}km away`}
+                pinColor={selectedGarage?.id === garage.id ? "red" : "blue"}
+                onPress={() => handleGarageSelection(garage)}
               />
-            )}
+            ))}
 
             {/* Draw the route */}
             {routeCoordinates.length > 0 && (
@@ -401,10 +569,6 @@ const LandingPage = () => {
               />
             )}
           </MapView>
-        ) : (
-          <Text style={styles.errorText}>
-            {error || "Map not available. Check location permissions."}
-          </Text>
         )}
 
         {/* REFRESH/RE-SEARCH BUTTON (Floating) */}
@@ -426,7 +590,7 @@ const LandingPage = () => {
             <Card.Content>
               <Title style={styles.actionTitle}>Need a Fix?</Title>
               <Paragraph style={styles.actionParagraph}>
-                Tap the button to instantly locate the closest available garage.
+                Tap the button to find nearby garages and choose the best one for you.
               </Paragraph>
               <Button
                 mode="contained"
@@ -436,8 +600,50 @@ const LandingPage = () => {
                 loading={findingGarage}
                 disabled={findingGarage || !userLocation}
               >
-                {findingGarage ? "Searching..." : "Find Nearest Garage"}
+                {findingGarage ? "Searching..." : "Find Nearby Garages"}
               </Button>
+            </Card.Content>
+          </Card>
+        )}
+
+        {/* GARAGE SELECTION CARD */}
+        {showGarageSelection && nearbyGarages.length > 0 && (
+          <Card style={styles.selectionCard}>
+            <Card.Content>
+              <Title style={styles.selectionTitle}>
+                <Ionicons name="list-outline" size={20} color={PRIMARY_COLOR} />{" "}
+                Choose a Garage ({nearbyGarages.length} found)
+              </Title>
+              <View style={styles.garageList}>
+                {nearbyGarages.slice(0, 3).map((garage) => (
+                  <TouchableOpacity
+                    key={garage.id}
+                    style={[
+                      styles.garageItem,
+                      selectedGarage?.id === garage.id && styles.selectedGarageItem
+                    ]}
+                    onPress={() => handleGarageSelection(garage)}
+                  >
+                    <View style={styles.garageInfo}>
+                      <Text style={styles.garageName}>{garage.name}</Text>
+                      <Text style={styles.garageDistance}>{garage.distance}km away</Text>
+                      <Text style={styles.garageAddress} numberOfLines={1}>
+                        {garage.address || "Address not available"}
+                      </Text>
+                    </View>
+                    <Ionicons 
+                      name={selectedGarage?.id === garage.id ? "radio-button-on" : "radio-button-off"} 
+                      size={20} 
+                      color={selectedGarage?.id === garage.id ? PRIMARY_COLOR : "#ccc"} 
+                    />
+                  </TouchableOpacity>
+                ))}
+                {nearbyGarages.length > 3 && (
+                  <Text style={styles.moreGaragesText}>
+                    +{nearbyGarages.length - 3} more garages available
+                  </Text>
+                )}
+              </View>
             </Card.Content>
           </Card>
         )}
@@ -490,15 +696,41 @@ const LandingPage = () => {
                   New Search
                 </Button>
 
-                {/* CALL BUTTON */}
+                {/* SEND REQUEST BUTTON */}
                 <Button
                   mode="contained"
+                  icon="send"
+                  onPress={handleSendRequest}
+                  style={styles.sendRequestButton}
+                  labelStyle={styles.sendRequestButtonLabel}
+                  loading={sendingRequest}
+                  disabled={sendingRequest}
+                >
+                  {sendingRequest ? "Sending..." : "Send Request"}
+                </Button>
+              </View>
+
+              <View style={styles.contactActions}>
+                {/* WHATSAPP BUTTON */}
+                <Button
+                  mode="contained"
+                  icon="chat"
+                  onPress={handleWhatsAppGarage}
+                  style={styles.whatsappButton}
+                  labelStyle={styles.whatsappButtonLabel}
+                >
+                  WhatsApp
+                </Button>
+
+                {/* CALL BUTTON */}
+                <Button
+                  mode="outlined"
                   icon="phone"
                   onPress={handleCallGarage}
                   style={styles.callButton}
                   labelStyle={styles.callButtonLabel}
                 >
-                  Call Now
+                  Call
                 </Button>
               </View>
             </Card.Content>
@@ -639,26 +871,131 @@ const styles = StyleSheet.create({
   },
   newSearchButton: {
     flex: 1,
-    marginRight: 10,
+    marginRight: 5,
     borderColor: DANGER_COLOR,
     borderWidth: 1,
     borderRadius: 8,
     paddingVertical: 5,
   },
   newSearchButtonLabel: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: "bold",
     color: DANGER_COLOR,
   },
-  callButton: {
-    flex: 1,
-    backgroundColor: "#007AFF", // Blue for a call action
+  sendRequestButton: {
+    flex: 2,
+    marginLeft: 5,
+    backgroundColor: PRIMARY_COLOR,
     paddingVertical: 5,
     borderRadius: 8,
   },
+  sendRequestButtonLabel: {
+    fontSize: 14,
+    fontWeight: "bold",
+    color: "#FFFFFF",
+  },
+  contactActions: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 10,
+  },
+  whatsappButton: {
+    flex: 1,
+    marginRight: 5,
+    backgroundColor: "#25D366", // WhatsApp green color
+    paddingVertical: 5,
+    borderRadius: 8,
+  },
+  whatsappButtonLabel: {
+    fontSize: 14,
+    fontWeight: "bold",
+    color: "#FFFFFF",
+  },
+  callButton: {
+    flex: 1,
+    marginLeft: 5,
+    borderColor: "#007AFF",
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingVertical: 5,
+  },
   callButtonLabel: {
+    fontSize: 14,
+    fontWeight: "bold",
+    color: "#007AFF",
+  },
+
+  // Garage Selection Card Styles
+  selectionCard: {
+    position: "absolute",
+    top: height * 0.15,
+    left: 20,
+    right: 20,
+    zIndex: 10,
+    borderRadius: 12,
+    elevation: 6,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    maxHeight: height * 0.4,
+  },
+  selectionTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: PRIMARY_COLOR,
+    textAlign: "center",
+    marginBottom: 15,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  garageList: {
+    maxHeight: height * 0.25,
+  },
+  garageItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 12,
+    paddingHorizontal: 15,
+    marginVertical: 2,
+    backgroundColor: "#f8f9fa",
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#e9ecef",
+  },
+  selectedGarageItem: {
+    backgroundColor: "#e8f5e8",
+    borderColor: PRIMARY_COLOR,
+    borderWidth: 2,
+  },
+  garageInfo: {
+    flex: 1,
+    marginRight: 10,
+  },
+  garageName: {
     fontSize: 16,
     fontWeight: "bold",
+    color: "#212121",
+    marginBottom: 2,
+  },
+  garageDistance: {
+    fontSize: 14,
+    color: PRIMARY_COLOR,
+    fontWeight: "600",
+    marginBottom: 2,
+  },
+  garageAddress: {
+    fontSize: 12,
+    color: SECONDARY_TEXT_COLOR,
+  },
+  moreGaragesText: {
+    textAlign: "center",
+    fontSize: 12,
+    color: SECONDARY_TEXT_COLOR,
+    fontStyle: "italic",
+    marginTop: 10,
   },
 });
 

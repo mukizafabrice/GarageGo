@@ -261,6 +261,20 @@ const SettingsScreen = ({ navigation }) => {
           style={styles.listItem}
         />
         <List.Item
+          title="Reports & Analytics"
+          description="View performance reports and analytics"
+          left={(props) => (
+            <List.Icon
+              {...props}
+              icon="chart-line"
+              color={PRIMARY_COLOR}
+            />
+          )}
+          right={(props) => <List.Icon {...props} icon="chevron-right" />}
+          onPress={() => navigation.navigate("GarageReports")}
+          style={styles.listItem}
+        />
+        <List.Item
           title="Manage Notifications"
           description="View and manage stored notifications"
           left={(props) => (

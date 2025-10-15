@@ -204,6 +204,20 @@ const SettingsScreen = ({ navigation }) => {
           style={styles.listItem}
         />
         <List.Item
+          title="System Reports"
+          description="View system-wide analytics and reports"
+          left={(props) => (
+            <List.Icon
+              {...props}
+              icon="chart-pie"
+              color={PRIMARY_COLOR}
+            />
+          )}
+          right={(props) => <List.Icon {...props} icon="chevron-right" />}
+          onPress={() => navigation.navigate("AdminReports")}
+          style={styles.listItem}
+        />
+        <List.Item
           title="Manage Notifications"
           description="View and manage stored notifications"
           left={(props) => (

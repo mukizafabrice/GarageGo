@@ -118,7 +118,7 @@ export const getGarageByUserId = async (req, res) => {
 // The updated controller function
 export const findNearestGarage = async (req, res) => {
   // Capture request body parameters
-  const { latitude, longitude, name, phoneNumber } = req.body;
+  const { latitude, longitude, name, phoneNumber, selectedGarageId, userFcmToken } = req.body;
 
   // Convert lat/lng to numbers immediately for use
   const driverLat = parseFloat(latitude);
@@ -160,18 +160,31 @@ export const findNearestGarage = async (req, res) => {
     let nearestGarage = null;
     let minDistance = Infinity;
 
-    // --- RESTORED: Find the nearest garage ---
-    for (const garage of allGarages) {
-      // Assuming calculateDistance is defined elsewhere (e.g., in a utils file)
-      const distance = calculateDistance(
-        driverLat,
-        driverLng,
-        garage.latitude,
-        garage.longitude
-      );
-      if (distance < minDistance) {
-        minDistance = distance;
-        nearestGarage = garage;
+    // --- Find the nearest garage or specific garage if selected ---
+    if (selectedGarageId) {
+      // If a specific garage is selected, find it by ID
+      nearestGarage = allGarages.find(garage => garage._id.toString() === selectedGarageId);
+      if (nearestGarage) {
+        minDistance = calculateDistance(
+          driverLat,
+          driverLng,
+          nearestGarage.latitude,
+          nearestGarage.longitude
+        );
+      }
+    } else {
+      // Find the nearest garage by distance
+      for (const garage of allGarages) {
+        const distance = calculateDistance(
+          driverLat,
+          driverLng,
+          garage.latitude,
+          garage.longitude
+        );
+        if (distance < minDistance) {
+          minDistance = distance;
+          nearestGarage = garage;
+        }
       }
     }
 
@@ -215,6 +228,7 @@ export const findNearestGarage = async (req, res) => {
       driverLocation: { type: "Point", coordinates: [driverLng, driverLat] },
       nearestGarage: { garageId: nearestGarage._id },
       notificationStatus: "PENDING_SENT", // Temporary status before send attempt
+      userFcmToken: userFcmToken, // Store user's FCM token for reverse notifications
     });
 
     // We now have the ID to send: notificationLog._id
@@ -302,6 +316,207 @@ export const findNearestGarage = async (req, res) => {
     await notificationLog.save();
 
     res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+/**
+ * @desc    Find multiple nearby garages within specified radius
+ * @route   POST /api/garages/nearby
+ * @access  Public
+ */
+export const findNearbyGarages = async (req, res) => {
+  try {
+    const { 
+      latitude, 
+      longitude, 
+      maxDistance = 50, // Default 50km radius
+      limit = 10, // Default limit of 10 garages
+      notifyAll = false, // Whether to send notifications to all found garages
+      name, 
+      phoneNumber 
+    } = req.body;
+
+    // Convert lat/lng to numbers
+    const driverLat = parseFloat(latitude);
+    const driverLng = parseFloat(longitude);
+
+    // Validation
+    if (!driverLat || !driverLng) {
+      return res.status(400).json({
+        success: false,
+        message: "Missing required fields (latitude, longitude).",
+      });
+    }
+
+    // Validate optional parameters
+    const maxDist = Math.max(1, Math.min(parseFloat(maxDistance) || 50, 200)); // Between 1-200km
+    const maxLimit = Math.max(1, Math.min(parseInt(limit) || 10, 50)); // Between 1-50 garages
+
+    console.log(
+      `🔍 Finding garages within ${maxDist}km of Lat: ${driverLat}, Lng: ${driverLng}`
+    );
+
+    const allGarages = await Garage.find();
+
+    if (allGarages.length === 0) {
+      return res.json({
+        success: false,
+        message: "No garages found in the database.",
+        data: []
+      });
+    }
+
+    // Calculate distances and filter garages within radius
+    const nearbyGarages = [];
+    
+    for (const garage of allGarages) {
+      const distance = calculateDistance(
+        driverLat,
+        driverLng,
+        garage.latitude,
+        garage.longitude
+      );
+      
+      if (distance <= maxDist) {
+        nearbyGarages.push({
+          ...garage.toObject(),
+          distance: Math.round(distance * 100) / 100 // Round to 2 decimal places
+        });
+      }
+    }
+
+    // Sort by distance (nearest first)
+    nearbyGarages.sort((a, b) => a.distance - b.distance);
+
+    // Limit results
+    const limitedGarages = nearbyGarages.slice(0, maxLimit);
+
+    // If notification is requested, send to all found garages
+    if (notifyAll && name && phoneNumber) {
+      const notificationResults = [];
+      
+      for (const garage of limitedGarages) {
+        const validTokens = garage.fcmToken
+          ? garage.fcmToken.filter((token) => Expo.isExpoPushToken(token))
+          : [];
+
+        if (validTokens.length > 0) {
+          try {
+            // Create notification log
+            const notificationLog = new Notification({
+              driverName: name,
+              driverPhoneNumber: phoneNumber,
+              driverLocation: { type: "Point", coordinates: [driverLng, driverLat] },
+              nearestGarage: { garageId: garage._id },
+              notificationStatus: "PENDING_SENT",
+            });
+
+            // Create messages
+            const messages = validTokens.map((token) => ({
+              to: token,
+              sound: "default",
+              title: `🚨 NEW REQUEST: ${name}`,
+              body: `Driver needs help! Contact: ${phoneNumber}. Distance: ${garage.distance}km`,
+              data: {
+                driverName: name,
+                driverPhoneNumber: phoneNumber,
+                driverLat: driverLat.toString(),
+                driverLng: driverLng.toString(),
+                notificationId: notificationLog._id,
+                garageId: garage._id,
+                distance: garage.distance.toString()
+              },
+            }));
+
+            // Send notifications
+            const ticketChunks = await expo.sendPushNotificationsAsync(messages);
+            
+            // Update notification log
+            notificationLog.notificationStatus = "SENT_SUCCESS";
+            notificationLog.expoTicket = ticketChunks;
+            await notificationLog.save();
+
+            notificationResults.push({
+              garageId: garage._id,
+              garageName: garage.name,
+              status: "success",
+              notificationId: notificationLog._id,
+              tokensNotified: validTokens.length
+            });
+
+            console.log(`✅ Notification sent to ${garage.name} (${garage.distance}km away)`);
+          } catch (error) {
+            console.error(`❌ Failed to notify ${garage.name}:`, error);
+            notificationResults.push({
+              garageId: garage._id,
+              garageName: garage.name,
+              status: "failed",
+              error: error.message
+            });
+          }
+        } else {
+          notificationResults.push({
+            garageId: garage._id,
+            garageName: garage.name,
+            status: "no_tokens",
+            message: "No valid push tokens found"
+          });
+        }
+      }
+
+      return res.json({
+        success: true,
+        message: `Found ${limitedGarages.length} nearby garages and sent notifications`,
+        data: {
+          garages: limitedGarages.map(garage => ({
+            id: garage._id,
+            name: garage.name,
+            latitude: garage.latitude,
+            longitude: garage.longitude,
+            address: garage.address,
+            phone: garage.phone,
+            services: garage.services,
+            distance: garage.distance
+          })),
+          notifications: notificationResults,
+          searchParams: {
+            maxDistance: maxDist,
+            limit: maxLimit,
+            totalFound: nearbyGarages.length
+          }
+        }
+      });
+    }
+
+    // Return just the garage data without notifications
+    return res.json({
+      success: true,
+      message: `Found ${limitedGarages.length} nearby garages`,
+      data: {
+        garages: limitedGarages.map(garage => ({
+          id: garage._id,
+          name: garage.name,
+          latitude: garage.latitude,
+          longitude: garage.longitude,
+          address: garage.address,
+          phone: garage.phone,
+          services: garage.services,
+          distance: garage.distance
+        })),
+        searchParams: {
+          maxDistance: maxDist,
+          limit: maxLimit,
+          totalFound: nearbyGarages.length
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error(`❌ Error in findNearbyGarages: ${error.message}`);
+    res.status(500).json({ 
+      success: false, 
+      message: "Server error while finding nearby garages" 
+    });
   }
 };
 

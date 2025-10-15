@@ -14,6 +14,7 @@ import * as Notifications from "expo-notifications";
 import { getGarageByUserId } from "../../services/garageService";
 import { updateNotificationStatusAction } from "../../services/notificationService";
 import { useAuth } from "../../context/AuthContext";
+import { openWhatsAppWithDriver } from "../../utils/whatsapp.js";
 import axios from "axios";
 import { decode as decodePolyline } from "@mapbox/polyline";
 import { Ionicons } from "@expo/vector-icons";
@@ -34,6 +35,7 @@ const GarageMapScreen = () => {
   const [garageLocation, setGarageLocation] = useState(null);
   const [garageInfo, setGarageInfo] = useState(null);
   const [driverLocation, setDriverLocation] = useState(null);
+  const [driverInfo, setDriverInfo] = useState(null);
   const [activeNotificationId, setActiveNotificationId] = useState(null);
   const [routeCoordinates, setRouteCoordinates] = useState([]);
   const [routeSummary, setRouteSummary] = useState({
@@ -58,6 +60,18 @@ const GarageMapScreen = () => {
     if (!meters) return "...";
     const km = (meters / 1000).toFixed(1);
     return `${km} km`;
+  };
+
+  // Handle WhatsApp contact with driver
+  const handleWhatsAppDriver = () => {
+    if (driverInfo && garageInfo?.name) {
+      openWhatsAppWithDriver(driverInfo, garageInfo.name);
+    } else {
+      Alert.alert(
+        "Driver Information Not Available",
+        "Driver contact information is not available yet. Please wait for the driver to be assigned."
+      );
+    }
   };
 
   // Function to handle job completion (updated to call API and reset state)
@@ -85,6 +99,7 @@ const GarageMapScreen = () => {
               // 2. Update local state
               setJobStatus("Arrived & Complete");
               setDriverLocation(null);
+              setDriverInfo(null);
               setRouteCoordinates([]);
               setActiveNotificationId(null); // Clear active job
 
@@ -189,8 +204,13 @@ const GarageMapScreen = () => {
   useEffect(() => {
     const subscription = Notifications.addNotificationReceivedListener(
       (notif) => {
-        const { driverLat, driverLng, notificationId } =
-          notif.request.content.data || {};
+        const { 
+          driverLat, 
+          driverLng, 
+          notificationId, 
+          driverName, 
+          driverPhoneNumber 
+        } = notif.request.content.data || {};
 
         if (!notificationId) return;
 
@@ -247,6 +267,14 @@ const GarageMapScreen = () => {
 
                       setDriverLocation(newDriverLocation);
                       setJobStatus("Driver En Route");
+
+                      // Store driver information for WhatsApp contact
+                      if (driverName && driverPhoneNumber) {
+                        setDriverInfo({
+                          name: driverName,
+                          phoneNumber: driverPhoneNumber,
+                        });
+                      }
 
                       if (garageLocation)
                         fetchRoute(garageLocation, newDriverLocation);
@@ -391,6 +419,25 @@ const GarageMapScreen = () => {
               Update job status once the vehicle has been successfully dropped
               off at your garage.
             </Paragraph>
+            
+            {/* Contact Driver Section */}
+            {driverInfo && (
+              <View style={styles.contactSection}>
+                <Paragraph style={styles.contactTitle}>Contact Driver:</Paragraph>
+                <View style={styles.contactButtons}>
+                  <Button
+                    mode="contained"
+                    icon="chat"
+                    onPress={handleWhatsAppDriver}
+                    style={styles.whatsappButton}
+                    labelStyle={styles.whatsappButtonLabel}
+                  >
+                    WhatsApp
+                  </Button>
+                </View>
+              </View>
+            )}
+
             <Button
               mode="contained"
               icon="check-circle-outline"
@@ -515,6 +562,34 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   actionButtonLabel: { fontSize: 16, fontWeight: "bold" },
+  contactSection: {
+    marginVertical: 15,
+    paddingVertical: 10,
+    borderTopWidth: 1,
+    borderTopColor: "#e0e0e0",
+  },
+  contactTitle: {
+    fontSize: 14,
+    fontWeight: "bold",
+    color: "#333",
+    marginBottom: 10,
+    textAlign: "center",
+  },
+  contactButtons: {
+    flexDirection: "row",
+    justifyContent: "center",
+  },
+  whatsappButton: {
+    backgroundColor: "#25D366",
+    paddingVertical: 5,
+    borderRadius: 8,
+    minWidth: 120,
+  },
+  whatsappButtonLabel: {
+    fontSize: 14,
+    fontWeight: "bold",
+    color: "#FFFFFF",
+  },
 });
 
 export default GarageMapScreen;

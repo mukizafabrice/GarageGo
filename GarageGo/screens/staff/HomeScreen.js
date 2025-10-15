@@ -84,6 +84,21 @@ const NotificationCard = ({
     }
   };
 
+  const handleWhatsApp = () => {
+    const phoneNumber = notif.driverPhoneNumber;
+    const driverName = notif.driverName;
+    if (phoneNumber && driverName) {
+      // Remove any non-numeric characters and ensure it starts with country code
+      const cleanPhone = phoneNumber.replace(/\D/g, '');
+      const whatsappUrl = `whatsapp://send?phone=${cleanPhone}&text=Hi ${driverName}, this is ${garageCoords ? 'your garage' : 'the garage'}. We're on our way to help you.`;
+      Linking.openURL(whatsappUrl).catch(() => {
+        Alert.alert("Error", "WhatsApp is not installed on this device.");
+      });
+    } else {
+      Alert.alert("Error", "Driver information is unavailable.");
+    }
+  };
+
   const getTimeAgo = (createdAt) => {
     const createdDate = new Date(createdAt);
     const now = new Date();
@@ -154,6 +169,10 @@ const NotificationCard = ({
         {
           text: "Call Driver",
           onPress: handleCall,
+        },
+        {
+          text: "WhatsApp Driver",
+          onPress: handleWhatsApp,
         },
         {
           text: "Cancel",

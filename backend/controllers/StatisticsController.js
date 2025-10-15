@@ -320,6 +320,40 @@ export const updateNotificationStatus = async (req, res) => {
       `[Notification Update] _id: ${id}, status: ${notificationStatus}, time: ${new Date().toISOString()}`
     );
 
+    // Send reverse notification to user if garage accepted or declined
+    if ((notificationStatus === 'GARAGE_ACCEPTED' || notificationStatus === 'GARAGE_DECLINED') && updatedNotification.userFcmToken) {
+      try {
+        const expo = (await import('expo-server-sdk')).Expo;
+
+        const expoClient = new expo();
+
+        const message = {
+          to: updatedNotification.userFcmToken,
+          sound: 'default',
+          title: notificationStatus === 'GARAGE_ACCEPTED'
+            ? '🎉 Request Accepted!'
+            : '❌ Request Declined',
+          body: notificationStatus === 'GARAGE_ACCEPTED'
+            ? `${updatedNotification.nearestGarage.garageId?.name || 'Garage'} has accepted your request and will contact you shortly.`
+            : `${updatedNotification.nearestGarage.garageId?.name || 'Garage'} is unable to help with your request at this time.`,
+          data: {
+            notificationId: updatedNotification._id,
+            garageName: updatedNotification.nearestGarage.garageId?.name || 'Garage',
+            status: notificationStatus,
+            driverName: updatedNotification.driverName,
+            driverPhone: updatedNotification.driverPhoneNumber,
+          },
+        };
+
+        const ticket = await expoClient.sendPushNotificationsAsync([message]);
+        console.log(`[Reverse Notification] Sent to user: ${notificationStatus}, ticket:`, ticket);
+
+      } catch (notificationError) {
+        console.error('[Reverse Notification Error]', notificationError);
+        // Don't fail the main request if notification fails
+      }
+    }
+
     return res.status(200).json({
       success: true,
       message: `Notification status updated to ${notificationStatus}`,

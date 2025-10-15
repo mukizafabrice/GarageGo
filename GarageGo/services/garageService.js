@@ -24,12 +24,56 @@ export const getGarageByUserId = async (userId) => {
   return response.data;
 };
 
-// Get nearby garages by coordinates
-export const getNearbyGarages = async (lat, lng, radius = 5000) => {
-  const response = await axiosInstance.get("/garages/nearby", {
-    params: { lat, lng, radius },
-  });
-  return response.data;
+// Get nearby garages by coordinates (new scalable API)
+export const findNearbyGarages = async (
+  latitude,
+  longitude,
+  maxDistance = 50,
+  limit = 10,
+  notifyAll = false,
+  name = null,
+  phoneNumber = null
+) => {
+  try {
+    const response = await axiosInstance.post("/garages/nearby", {
+      latitude,
+      longitude,
+      maxDistance,
+      limit,
+      notifyAll,
+      name,
+      phoneNumber,
+    });
+    return response.data;
+  } catch (error) {
+    console.error("Error finding nearby garages:", error);
+    throw error;
+  }
+};
+
+// Send request to a specific garage
+export const sendRequestToGarage = async (
+  garageId,
+  latitude,
+  longitude,
+  name,
+  phoneNumber,
+  userFcmToken = null
+) => {
+  try {
+    const response = await axiosInstance.post("/garages/nearest", {
+      latitude,
+      longitude,
+      name,
+      phoneNumber,
+      selectedGarageId: garageId, // This will be used to target specific garage
+      userFcmToken, // Include user's FCM token for reverse notifications
+    });
+    return response.data;
+  } catch (error) {
+    console.error("Error sending request to garage:", error);
+    throw error;
+  }
 };
 
 /**

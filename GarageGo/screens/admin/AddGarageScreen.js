@@ -1,5 +1,13 @@
 import React, { useState, useEffect } from "react";
-import { View, StyleSheet, Alert, ScrollView, Text } from "react-native";
+import {
+  View,
+  StyleSheet,
+  Alert,
+  ScrollView,
+  Text,
+  KeyboardAvoidingView,
+  Platform,
+} from "react-native";
 import {
   Appbar,
   Card,
@@ -169,141 +177,151 @@ const AddGarageScreen = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        <Card style={styles.card}>
-          <Card.Content>
-            <DropDownPicker
-              open={open}
-              value={value}
-              items={items}
-              setOpen={setOpen}
-              setValue={setValue}
-              setItems={setItems}
-              placeholder="Select User"
-              style={styles.dropdown}
-              listMode="SCROLLVIEW"
-              placeholderStyle={{ color: "#000000" }}
-              labelStyle={{ color: "#000000" }}
-              dropDownContainerStyle={{
-                backgroundColor: "#FFFFFF",
-                borderColor: "#000000",
-              }}
-              zIndex={1000}
-            />
-            <TextInput
-              label="Garage Name"
-              value={formData.name}
-              onChangeText={(text) => setFormData({ ...formData, name: text })}
-              mode="outlined"
-              style={styles.modalInput}
-            />
-            <TextInput
-              label="Description"
-              value={formData.description}
-              onChangeText={(text) =>
-                setFormData({ ...formData, description: text })
-              }
-              mode="outlined"
-              style={styles.modalInput}
-              multiline
-            />
-            <TextInput
-              label="Services (comma-separated)"
-              value={formData.services}
-              onChangeText={(text) =>
-                setFormData({ ...formData, services: text })
-              }
-              mode="outlined"
-              style={styles.modalInput}
-            />
-            <View style={styles.locationContainer}>
-              <TextInput
-                label="Latitude"
-                value={formData.latitude}
-                onChangeText={(text) =>
-                  setFormData({ ...formData, latitude: text })
-                }
-                mode="outlined"
-                style={[styles.modalInput, styles.halfInput]}
-                keyboardType="numeric"
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 80 : 0} // adjust if you have headers
+      >
+        <ScrollView contentContainerStyle={styles.scrollContent}>
+          <Card style={styles.card}>
+            <Card.Content>
+              <DropDownPicker
+                open={open}
+                value={value}
+                items={items}
+                setOpen={setOpen}
+                setValue={setValue}
+                setItems={setItems}
+                placeholder="Select User"
+                style={styles.dropdown}
+                listMode="SCROLLVIEW"
+                placeholderStyle={{ color: "#000000" }}
+                labelStyle={{ color: "#000000" }}
+                dropDownContainerStyle={{
+                  backgroundColor: "#FFFFFF",
+                  borderColor: "#000000",
+                }}
+                zIndex={1000}
               />
               <TextInput
-                label="Longitude"
-                value={formData.longitude}
+                label="Garage Name"
+                value={formData.name}
                 onChangeText={(text) =>
-                  setFormData({ ...formData, longitude: text })
+                  setFormData({ ...formData, name: text })
                 }
                 mode="outlined"
-                style={[styles.modalInput, styles.halfInput]}
-                keyboardType="numeric"
+                style={styles.modalInput}
               />
-            </View>
-            <View style={styles.buttonRow}>
-              <Button
-                mode="contained"
-                onPress={handleFetchCurrentLocation}
-                loading={isFetchingLocation}
-                style={[styles.fetchButton, styles.buttonLeft]}
-                icon="crosshairs-gps"
-                buttonColor="#4CAF50"
-                textColor="#FFFFFF"
-                disabled={isFetchingAddress}
-              >
-                <Text>Use GPS</Text>
-              </Button>
-              <Button
-                mode="contained"
-                onPress={handleFetchAddress}
-                loading={isFetchingAddress}
-                style={[styles.fetchButton, styles.buttonRight]}
-                icon="map-search"
-                buttonColor="#4CAF50"
-                textColor="#FFFFFF"
-                disabled={isFetchingLocation}
-              >
-                <Text>Fetch Address</Text>
-              </Button>
-            </View>
-            {fetchAddressMessage ? (
-              <Text style={styles.fetchMessage}>{fetchAddressMessage}</Text>
-            ) : null}
-            <TextInput
-              label="Address"
-              value={formData.address}
-              onChangeText={(text) =>
-                setFormData({ ...formData, address: text })
-              }
-              mode="outlined"
-              style={styles.modalInput}
-            />
-            <TextInput
-              label="Phone"
-              value={formData.phone}
-              onChangeText={(text) => setFormData({ ...formData, phone: text })}
-              mode="outlined"
-              style={styles.modalInput}
-            />
-          </Card.Content>
-        </Card>
-      </ScrollView>
-      <View style={styles.bottomActions}>
-        <Button
-          onPress={() => navigation.goBack()}
-          mode="outlined"
-          textColor="#000000"
-        >
-          <Text>Cancel</Text>
-        </Button>
-        <Button
-          onPress={handleSave}
-          mode="contained"
-          loading={loading}
-          buttonColor="#4CAF50"
-          textColor="#FFFFFF"
-        >
-          <Text>Save</Text>
-        </Button>
-      </View>
+              <TextInput
+                label="Description"
+                value={formData.description}
+                onChangeText={(text) =>
+                  setFormData({ ...formData, description: text })
+                }
+                mode="outlined"
+                style={styles.modalInput}
+                multiline
+              />
+              <TextInput
+                label="Services (comma-separated)"
+                value={formData.services}
+                onChangeText={(text) =>
+                  setFormData({ ...formData, services: text })
+                }
+                mode="outlined"
+                style={styles.modalInput}
+              />
+              <View style={styles.locationContainer}>
+                <TextInput
+                  label="Latitude"
+                  value={formData.latitude}
+                  onChangeText={(text) =>
+                    setFormData({ ...formData, latitude: text })
+                  }
+                  mode="outlined"
+                  style={[styles.modalInput, styles.halfInput]}
+                  keyboardType="numeric"
+                />
+                <TextInput
+                  label="Longitude"
+                  value={formData.longitude}
+                  onChangeText={(text) =>
+                    setFormData({ ...formData, longitude: text })
+                  }
+                  mode="outlined"
+                  style={[styles.modalInput, styles.halfInput]}
+                  keyboardType="numeric"
+                />
+              </View>
+              <View style={styles.buttonRow}>
+                <Button
+                  mode="contained"
+                  onPress={handleFetchCurrentLocation}
+                  loading={isFetchingLocation}
+                  style={[styles.fetchButton, styles.buttonLeft]}
+                  icon="crosshairs-gps"
+                  buttonColor="#4CAF50"
+                  textColor="#FFFFFF"
+                  disabled={isFetchingAddress}
+                >
+                  <Text>Use GPS</Text>
+                </Button>
+                <Button
+                  mode="contained"
+                  onPress={handleFetchAddress}
+                  loading={isFetchingAddress}
+                  style={[styles.fetchButton, styles.buttonRight]}
+                  icon="map-search"
+                  buttonColor="#4CAF50"
+                  textColor="#FFFFFF"
+                  disabled={isFetchingLocation}
+                >
+                  <Text>Fetch Address</Text>
+                </Button>
+              </View>
+              {fetchAddressMessage ? (
+                <Text style={styles.fetchMessage}>{fetchAddressMessage}</Text>
+              ) : null}
+              <TextInput
+                label="Address"
+                value={formData.address}
+                onChangeText={(text) =>
+                  setFormData({ ...formData, address: text })
+                }
+                mode="outlined"
+                style={styles.modalInput}
+              />
+              <TextInput
+                label="Phone"
+                value={formData.phone}
+                onChangeText={(text) =>
+                  setFormData({ ...formData, phone: text })
+                }
+                mode="outlined"
+                style={styles.modalInput}
+              />
+            </Card.Content>
+          </Card>
+        </ScrollView>
+        <View style={styles.bottomActions}>
+          <Button
+            onPress={() => navigation.goBack()}
+            mode="outlined"
+            textColor="#000000"
+          >
+            <Text>Cancel</Text>
+          </Button>
+          <Button
+            onPress={handleSave}
+            mode="contained"
+            loading={loading}
+            buttonColor="#4CAF50"
+            textColor="#FFFFFF"
+          >
+            <Text>Save</Text>
+          </Button>
+        </View>
+      </KeyboardAvoidingView>
     </View>
   );
 };

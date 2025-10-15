@@ -12,6 +12,7 @@ import MapView, { Marker, Polyline } from "react-native-maps";
 import * as Notifications from "expo-notifications";
 import { getGarageByUserId } from "../../services/garageService";
 import { useAuth } from "../../context/AuthContext";
+import { openWhatsAppWithGarage } from "../../utils/whatsapp.js";
 import axios from "axios";
 import { decode as decodePolyline } from "@mapbox/polyline";
 import { Ionicons } from "@expo/vector-icons";
@@ -59,6 +60,18 @@ const GarageMapScreen = () => {
     if (!meters) return "...";
     const km = (meters / 1000).toFixed(1);
     return `${km} km`;
+  };
+
+  // Handle WhatsApp contact with garage
+  const handleWhatsAppGarage = () => {
+    if (garageInfo?.name && garageInfo?.phone) {
+      openWhatsAppWithGarage(garageInfo, "Driver", "Driver Phone");
+    } else {
+      Alert.alert(
+        "Garage Information Not Available",
+        "Garage contact information is not available."
+      );
+    }
   };
 
   // Handler for marking the job as complete
@@ -162,6 +175,7 @@ const GarageMapScreen = () => {
         setGarageInfo({
           name: data.name || "My Garage",
           address: data.address || "Unknown Address",
+          phone: data.phone || null,
         });
         // Animate to garage location on initial load
         mapRef.current?.animateToRegion(
@@ -354,6 +368,24 @@ const GarageMapScreen = () => {
               off.
             </Paragraph>
 
+            {/* Contact Garage Section */}
+            {garageInfo?.phone && (
+              <View style={styles.contactSection}>
+                <Paragraph style={styles.contactTitle}>Contact Garage:</Paragraph>
+                <View style={styles.contactButtons}>
+                  <Button
+                    mode="contained"
+                    icon="chat"
+                    onPress={handleWhatsAppGarage}
+                    style={styles.whatsappButton}
+                    labelStyle={styles.whatsappButtonLabel}
+                  >
+                    WhatsApp
+                  </Button>
+                </View>
+              </View>
+            )}
+
             <Button
               mode="contained"
               icon="check-circle-outline"
@@ -505,6 +537,34 @@ const styles = StyleSheet.create({
   actionButtonLabel: {
     fontSize: 16,
     fontWeight: "bold",
+  },
+  contactSection: {
+    marginVertical: 15,
+    paddingVertical: 10,
+    borderTopWidth: 1,
+    borderTopColor: "#e0e0e0",
+  },
+  contactTitle: {
+    fontSize: 14,
+    fontWeight: "bold",
+    color: "#333",
+    marginBottom: 10,
+    textAlign: "center",
+  },
+  contactButtons: {
+    flexDirection: "row",
+    justifyContent: "center",
+  },
+  whatsappButton: {
+    backgroundColor: "#25D366",
+    paddingVertical: 5,
+    borderRadius: 8,
+    minWidth: 120,
+  },
+  whatsappButtonLabel: {
+    fontSize: 14,
+    fontWeight: "bold",
+    color: "#FFFFFF",
   },
 });
 

@@ -8,6 +8,7 @@ import {
   updateGarage,
   deleteGarage,
   findNearestGarage, // ✅ Import the new controller function
+  findNearbyGarages, // ✅ Import the new nearby garages controller function
 } from "../controllers/garageController.js";
 import { updateGarageToken as updateTokenController } from "../controllers/garageController.js";
 const router = express.Router();
@@ -23,6 +24,7 @@ router.post("/", createGarage);
 router.get("/", getGarages);
 
 router.post("/nearest", findNearestGarage); // ✅ Add the new route here
+router.post("/nearby", findNearbyGarages); // ✅ Add the new nearby garages route
 router.post("/updateToken", async (req, res) => {
   const { garageId, fcmToken } = req.body;
 
