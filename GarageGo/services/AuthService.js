@@ -11,7 +11,10 @@ const AuthService = {
       });
       return response.data;
     } catch (error) {
-      console.error("Login error:", error.message);
+      // Disable console logging to prevent confusion
+      // if (__DEV__) {
+      //   console.error("Login error:", error.message);
+      // }
       throw new Error(
         error.response?.data?.message || "Login failed. Please try again."
       );

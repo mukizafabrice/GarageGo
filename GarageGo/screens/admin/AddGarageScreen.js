@@ -302,25 +302,25 @@ const AddGarageScreen = ({ navigation }) => {
               />
             </Card.Content>
           </Card>
+          <View style={styles.formActions}>
+            <Button
+              onPress={() => navigation.goBack()}
+              mode="outlined"
+              textColor="#000000"
+            >
+              <Text>Cancel</Text>
+            </Button>
+            <Button
+              onPress={handleSave}
+              mode="contained"
+              loading={loading}
+              buttonColor="#4CAF50"
+              textColor="#FFFFFF"
+            >
+              <Text>Save</Text>
+            </Button>
+          </View>
         </ScrollView>
-        <View style={styles.bottomActions}>
-          <Button
-            onPress={() => navigation.goBack()}
-            mode="outlined"
-            textColor="#000000"
-          >
-            <Text>Cancel</Text>
-          </Button>
-          <Button
-            onPress={handleSave}
-            mode="contained"
-            loading={loading}
-            buttonColor="#4CAF50"
-            textColor="#FFFFFF"
-          >
-            <Text>Save</Text>
-          </Button>
-        </View>
       </KeyboardAvoidingView>
     </View>
   );
@@ -339,7 +339,9 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   scrollContent: {
-    padding: 16,
+    paddingTop: 50,
+    paddingHorizontal: 16,
+    paddingBottom: 16,
   },
   card: {
     elevation: 0,
@@ -375,17 +377,14 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     color: "#000000",
   },
-  bottomActions: {
-    flexDirection: "row",
-    justifyContent: "flex-end",
-    padding: 16,
-    borderTopWidth: 1,
-    borderColor: "#000000",
-    backgroundColor: "#FFFFFF",
-  },
   dropdown: {
     marginBottom: 12,
     borderColor: "#000000",
+  },
+  formActions: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    marginTop: 16,
   },
 });
 

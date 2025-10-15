@@ -80,6 +80,11 @@ const attemptLogin = async (email, password) => {
       return originalData; // Return the successfully recovered data
     }
 
+    // Re-throw the original error with proper message for invalid credentials
+    if (error.response?.status === 400 && originalData?.message === "Invalid credentials") {
+      throw new Error("Invalid credentials. Please check your email and password.");
+    }
+
     // Re-throw the original error if no successful data was found.
     throw error;
   }
@@ -211,9 +216,13 @@ const Login = ({ navigation }) => {
       // Catch network or true authentication errors from Step 1 or Step 4 failure
       const errorDetail = error.message || "An unknown error occurred.";
 
-      // LOGGING THE CRITICAL ERROR FOR DIAGNOSTICS
-      console.error("Critical Login Flow Failure:", error);
+      // LOGGING THE CRITICAL ERROR FOR DIAGNOSTICS (only in development)
+      // Temporarily disabled to prevent confusion
+      // if (__DEV__) {
+      //   console.error("Critical Login Flow Failure:", error);
+      // }
 
+      // Display the error on screen instead of just logging it
       Alert.alert("Login Error", errorDetail);
     } finally {
       setIsLoading(false);
