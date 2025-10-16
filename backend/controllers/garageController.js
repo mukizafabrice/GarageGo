@@ -193,28 +193,52 @@ export const findNearestGarage = async (req, res) => {
       ? nearestGarage.fcmToken.filter((token) => Expo.isExpoPushToken(token))
       : [];
 
-    // --- RESTORED: Check if nearest garage was found and has valid tokens ---
-    if (!nearestGarage || validTokens.length === 0) {
-      const tokenStatus =
-        nearestGarage?.fcmToken?.length > 0 ? "Invalid Token(s)" : "No Token";
+    console.log(`🎯 Garage ${nearestGarage.name} has ${nearestGarage.fcmToken?.length || 0} total tokens, ${validTokens.length} valid tokens`);
+    console.log(`📱 Valid tokens:`, validTokens);
 
-      console.log(
-        `No nearest garage with a valid FCM token was found. Status: ${tokenStatus}`
-      );
+    // --- FIX: Check if nearest garage was found and has valid tokens ---
+    if (!nearestGarage) {
+      console.log(`No nearest garage found for the request`);
 
-      // LOG: INVALID_TOKEN
+      // LOG: NO_GARAGE_FOUND
       const notificationLog = new Notification({
         driverName: name,
         driverPhoneNumber: phoneNumber,
         driverLocation: { type: "Point", coordinates: [driverLng, driverLat] },
-        nearestGarage: nearestGarage ? { garageId: nearestGarage._id } : null,
-        notificationStatus: "INVALID_TOKEN",
+        notificationStatus: "NO_GARAGE_FOUND",
       });
       await notificationLog.save();
 
       return res.json({
         success: false,
-        message: `Nearest garage found, but it has no valid push tokens registered.`,
+        message: `No garage found nearby.`,
+      });
+    }
+
+    // --- FIX: If no valid tokens, still create notification but mark as invalid token ---
+    if (validTokens.length === 0) {
+      const tokenStatus =
+        nearestGarage?.fcmToken?.length > 0 ? "Invalid Token(s)" : "No Token";
+
+      console.log(
+        `Garage found but no valid FCM tokens. Status: ${tokenStatus}. Creating notification log anyway.`
+      );
+
+      // LOG: INVALID_TOKEN but still create the notification for tracking
+      const notificationLog = new Notification({
+        driverName: name,
+        driverPhoneNumber: phoneNumber,
+        driverLocation: { type: "Point", coordinates: [driverLng, driverLat] },
+        nearestGarage: { garageId: nearestGarage._id },
+        notificationStatus: "INVALID_TOKEN",
+        userFcmToken: userFcmToken, // Store user's FCM token for reverse notifications
+      });
+      await notificationLog.save();
+
+      return res.json({
+        success: false,
+        message: `Garage found, but it has no valid push tokens registered. The request has been logged.`,
+        notificationId: notificationLog._id,
       });
     }
 
@@ -430,11 +454,16 @@ export const findNearbyGarages = async (req, res) => {
 
             // Send notifications
             const ticketChunks = await expo.sendPushNotificationsAsync(messages);
-            
+        
             // Update notification log
             notificationLog.notificationStatus = "SENT_SUCCESS";
             notificationLog.expoTicket = ticketChunks;
             await notificationLog.save();
+        
+            console.log(`✅ Notifications sent to ${validTokens.length} garage tokens:`, validTokens);
+        
+            // Log ticket results for debugging
+            console.log(`📊 Notification tickets:`, ticketChunks);
 
             notificationResults.push({
               garageId: garage._id,

@@ -100,4 +100,3 @@ export const AuthProvider = ({ children }) => {
 
 // Custom hook for easy access
 export const useAuth = () => useContext(AuthContext);
- 

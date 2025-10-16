@@ -83,7 +83,7 @@ const statusColor = (status, colors) => {
   }
 };
 
-const NotificationCard = ({ notif, onClear, colors, PRIMARY_COLOR }) => {
+const NotificationCard = ({ notif, onClear, onAccept, onDecline, onComplete, colors, PRIMARY_COLOR }) => {
   const [isExpanded, setIsExpanded] = useState(false);
 
   // Function to format coordinates cleanly
@@ -140,6 +140,50 @@ const NotificationCard = ({ notif, onClear, colors, PRIMARY_COLOR }) => {
             >
               {notif.notificationStatus.replace(/_/g, " ")}
             </Chip>
+
+            {/* Action Buttons for Active Requests */}
+            {(notif.notificationStatus === "SENT_SUCCESS" ||
+              notif.notificationStatus === "SENT_RECEIVED") && (
+              <View style={styles.actionButtonsContainer}>
+                <Button
+                  icon="check"
+                  mode="contained"
+                  onPress={() => onAccept(notif._id)}
+                  compact
+                  buttonColor="#4CAF50"
+                  style={styles.actionButton}
+                  labelStyle={styles.actionButtonLabel}
+                >
+                  Accept
+                </Button>
+                <Button
+                  icon="close"
+                  mode="contained"
+                  onPress={() => onDecline(notif._id)}
+                  compact
+                  buttonColor="#F44336"
+                  style={styles.actionButton}
+                  labelStyle={styles.actionButtonLabel}
+                >
+                  Decline
+                </Button>
+              </View>
+            )}
+
+            {/* Complete Button for Accepted Requests */}
+            {notif.notificationStatus === "GARAGE_ACCEPTED" && (
+              <Button
+                icon="check-circle"
+                mode="contained"
+                onPress={() => onComplete(notif._id)}
+                compact
+                buttonColor="#2196F3"
+                style={styles.actionButton}
+                labelStyle={styles.actionButtonLabel}
+              >
+                Complete
+              </Button>
+            )}
 
             {/* Toggle Icon Button */}
             <Button
@@ -337,6 +381,63 @@ const NotificationsManager = ({ navigation }) => {
     );
   };
 
+  // NEW: Function to accept a service request
+  const handleAccept = async (id) => {
+    try {
+      await updateNotificationStatusAction(id, "accept");
+      // Update local state
+      setNotifications((prev) =>
+        prev.map((notif) =>
+          notif._id === id
+            ? { ...notif, notificationStatus: "GARAGE_ACCEPTED" }
+            : notif
+        )
+      );
+      Alert.alert("Success", "Service request accepted!");
+    } catch (e) {
+      console.error("Accept Request Error:", e);
+      Alert.alert("Error", "Failed to accept request. Please try again.");
+    }
+  };
+
+  // NEW: Function to decline a service request
+  const handleDecline = async (id) => {
+    try {
+      await updateNotificationStatusAction(id, "decline");
+      // Update local state
+      setNotifications((prev) =>
+        prev.map((notif) =>
+          notif._id === id
+            ? { ...notif, notificationStatus: "GARAGE_DECLINED" }
+            : notif
+        )
+      );
+      Alert.alert("Request Declined", "The driver has been notified.");
+    } catch (e) {
+      console.error("Decline Request Error:", e);
+      Alert.alert("Error", "Failed to decline request. Please try again.");
+    }
+  };
+
+  // NEW: Function to mark service as completed
+  const handleComplete = async (id) => {
+    try {
+      await updateNotificationStatusAction(id, "complete");
+      // Update local state
+      setNotifications((prev) =>
+        prev.map((notif) =>
+          notif._id === id
+            ? { ...notif, notificationStatus: "SERVICE_COMPLETED" }
+            : notif
+        )
+      );
+      Alert.alert("Success", "Service marked as completed!");
+    } catch (e) {
+      console.error("Complete Service Error:", e);
+      Alert.alert("Error", "Failed to complete service. Please try again.");
+    }
+  };
+
   // UPDATED: Function to clear ALL notifications (client-side and API)
   const handleClearAllNotifications = async () => {
     if (!garageId) {
@@ -443,6 +544,9 @@ const NotificationsManager = ({ navigation }) => {
               key={notif._id}
               notif={notif}
               onClear={handleClear}
+              onAccept={handleAccept}
+              onDecline={handleDecline}
+              onComplete={handleComplete}
               colors={colors}
               PRIMARY_COLOR={PRIMARY_COLOR}
             />
@@ -527,6 +631,21 @@ const styles = StyleSheet.create({
     padding: 0,
     minWidth: 40,
     height: 40,
+  },
+  actionButtonsContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginRight: 8,
+  },
+  actionButton: {
+    marginHorizontal: 2,
+    minWidth: 60,
+    height: 32,
+  },
+  actionButtonLabel: {
+    fontSize: 10,
+    margin: 0,
+    padding: 0,
   },
   emptyState: {
     flex: 1,

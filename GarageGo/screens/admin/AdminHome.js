@@ -80,6 +80,10 @@ const AdminDashboard = ({ navigation }) => {
       setRecentActivities(allActivities);
     } catch (error) {
       console.error("Dashboard Data Fetch Error:", error);
+      console.error("Error response:", error.response);
+      console.error("Error status:", error.response?.status);
+      console.error("Error data:", error.response?.data);
+      console.error("Error message:", error.message);
       Alert.alert(
         "Error",
         "Failed to fetch dashboard data. Check network or service layer implementation."

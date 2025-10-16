@@ -191,3 +191,15 @@ export const fetchLiveNotifications = async (garageId) => {
     throw error.response?.data || error;
   }
 };
+
+// NEW: Function to get user's FCM token from AsyncStorage
+export const getStoredFCMToken = async () => {
+  try {
+    const AsyncStorage = (await import("@react-native-async-storage/async-storage")).default;
+    const token = await AsyncStorage.getItem("user_fcm_token");
+    return token;
+  } catch (error) {
+    console.error("Error getting stored FCM token:", error);
+    return null;
+  }
+};

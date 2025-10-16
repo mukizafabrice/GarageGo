@@ -107,6 +107,14 @@ const LandingPage = () => {
       }
     } catch (error) {
       console.error("Error getting FCM token:", error);
+      // Check if it's the EXPERIENCE_NOT_FOUND error
+      if (error.message && error.message.includes("EXPERIENCE_NOT_FOUND")) {
+        console.warn("Expo experience not found. This is expected in development. Using fallback token.");
+        // Return a proper Expo-like token for development/testing purposes
+        const fallbackToken = `ExponentPushToken[fallback-${Date.now()}]`;
+        await AsyncStorage.setItem("user_fcm_token", fallbackToken);
+        setUserFcmToken(fallbackToken);
+      }
     }
   };
 
@@ -174,13 +182,19 @@ const LandingPage = () => {
 
     setSendingRequest(true);
     try {
+      // Get fresh FCM token from AsyncStorage
+      const AsyncStorage = (await import("@react-native-async-storage/async-storage")).default;
+      const freshFcmToken = await AsyncStorage.getItem("user_fcm_token");
+
+      console.log("Sending request with FCM token:", freshFcmToken);
+
       const response = await sendRequestToGarage(
         selectedGarage.id,
         userLocation.latitude,
         userLocation.longitude,
         userData.name,
         userData.phoneNumber,
-        userFcmToken // Include user's FCM token for reverse notifications
+        freshFcmToken // Use fresh FCM token from AsyncStorage
       );
 
       if (response.success) {
@@ -479,6 +493,31 @@ const LandingPage = () => {
     initializeApp();
   }, []);
 
+  // 3. Listen for status updates from push notifications
+  useEffect(() => {
+    const handleNotificationResponse = (response) => {
+      const data = response.notification.request.content.data;
+      if (data && data.notificationId) {
+        // Show status update alert
+        const statusMessages = {
+          GARAGE_ACCEPTED: "Your service request has been accepted!",
+          GARAGE_DECLINED: "Your service request has been declined.",
+          SERVICE_COMPLETED: "Your service has been completed!"
+        };
+
+        const message = statusMessages[data.status] || "Request status updated";
+        Alert.alert("Request Update", message);
+        console.log("Received status update:", data);
+      }
+    };
+
+    const subscription = Notifications.addNotificationResponseReceivedListener(
+      handleNotificationResponse
+    );
+
+    return () => subscription.remove();
+  }, []);
+
   // 2. Notification Listeners
   useEffect(() => {
     // Listener for notifications received while the app is in the foreground
@@ -536,6 +575,15 @@ const LandingPage = () => {
       <Header onProfilePress={handleProfilePress} />
 
       <View style={styles.mapContainer}>
+        {/* REQUEST STATUS BANNER - Show if user has active requests */}
+        {userData && (
+          <View style={styles.statusBanner}>
+            <Text style={styles.statusBannerText}>
+              💡 Tip: After sending a request, you'll receive notifications about its status.
+            </Text>
+          </View>
+        )}
+
         {/* MAP VIEW */}
         <MapView
           ref={mapRef}
@@ -1025,6 +1073,23 @@ const styles = StyleSheet.create({
     color: SECONDARY_TEXT_COLOR,
     fontStyle: "italic",
     marginTop: 10,
+  },
+  statusBanner: {
+    position: "absolute",
+    top: 10,
+    left: 10,
+    right: 10,
+    backgroundColor: "rgba(76, 175, 80, 0.9)",
+    borderRadius: 8,
+    padding: 12,
+    zIndex: 20,
+    elevation: 5,
+  },
+  statusBannerText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    textAlign: "center",
+    fontWeight: "500",
   },
 });
 

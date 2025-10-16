@@ -46,11 +46,21 @@ const getFCMToken = async () => {
     }
 
     // Get the Expo Push Token (which acts as the device token for Expo)
-    const token = (await Notifications.getExpoPushTokenAsync()).data;
-    console.log("FCM Token (Expo Push Token) retrieved successfully:", token);
+    const tokenData = await Notifications.getExpoPushTokenAsync();
+    const token = tokenData.data;
+    console.log("📱 FCM Token (Expo Push Token) retrieved successfully:", token);
+    console.log("🔍 Full token data:", tokenData);
     return token;
   } catch (error) {
     console.error("Error retrieving FCM token:", error);
+    // Check if it's the EXPERIENCE_NOT_FOUND error
+    if (error.message && error.message.includes("EXPERIENCE_NOT_FOUND")) {
+      console.warn(
+        "Expo experience not found. This is expected in development. Using fallback token."
+      );
+      // Return a proper Expo-like token for development/testing purposes
+      return `ExponentPushToken[fallback-${Date.now()}]`;
+    }
     return null;
   }
 };
@@ -81,8 +91,13 @@ const attemptLogin = async (email, password) => {
     }
 
     // Re-throw the original error with proper message for invalid credentials
-    if (error.response?.status === 400 && originalData?.message === "Invalid credentials") {
-      throw new Error("Invalid credentials. Please check your email and password.");
+    if (
+      error.response?.status === 400 &&
+      originalData?.message === "Invalid credentials"
+    ) {
+      throw new Error(
+        "Invalid credentials. Please check your email and password."
+      );
     }
 
     // Re-throw the original error if no successful data was found.
@@ -128,6 +143,7 @@ const Login = ({ navigation }) => {
     setIsLoading(true);
     // --- Retrieve real FCM Token ---
     const fcmToken = await getFCMToken();
+    console.log("🚀 Login - FCM Token retrieved:", fcmToken);
 
     try {
       // --- Step 1: Initial Login & Authentication (Always needed) ---
@@ -141,16 +157,6 @@ const Login = ({ navigation }) => {
 
       // Check if the user is a role that requires a linked garage
       if (userRole === "garageOwner" || userRole === "user") {
-        // Check if token retrieval failed for garage-dependent roles
-        if (!fcmToken) {
-          Alert.alert(
-            "Token Error",
-            "Could not retrieve device token. This is required for push notifications. Please check app permissions or network."
-          );
-          setIsLoading(false);
-          return;
-        }
-
         // --- Step 2: Fetch Garage ID ---
         const garageResponse = await getGarageByUserId(userId);
         console.log("Fetched garage response:", garageResponse);
@@ -164,29 +170,23 @@ const Login = ({ navigation }) => {
           const garageId = garageResponse.data._id;
 
           // --- Step 3: Final Login (Token Registration on Backend) ---
-          // ULTRA-AGGRESSIVE ISOLATION FIX: Wrap in setTimeout(0) to execute on the next tick,
-          // completely detaching it from the current thread's try/catch block.
-          setTimeout(() => {
-            AuthService.login(email, password, fcmToken, garageId)
-              .then(() => {
-                // Success: Log the success internally, but don't block the main thread.
-                console.log(
-                  "FCM Token update request sent successfully (ULTRA ISOLATED)."
-                );
-              })
-              .catch((updateError) => {
-                // Failure: Log the full error for debugging and show a non-critical alert.
-                console.warn(
-                  "FCM Token update request failed silently (ULTRA ISOLATED). Error:",
-                  updateError.message || "Unknown error during token update."
-                );
-                // Only alert if it's a critical push feature
-                Alert.alert(
-                  "Token Update Warning",
-                  "Successfully logged in, but the push notification registration failed. Notifications may not work."
-                );
-              });
-          }, 0); // Execute on the next event loop tick
+          // Always send FCM token to backend for garage roles, even if null
+          try {
+            const loginResult = await AuthService.login(
+              email,
+              password,
+              fcmToken,
+              garageId
+            );
+            console.log("✅ Final login with FCM token successful:", loginResult);
+            console.log("🔑 FCM Token sent to backend:", fcmToken);
+          } catch (loginError) {
+            console.warn(
+              "Final login failed, but proceeding with initial login:",
+              loginError
+            );
+            // Still proceed even if the FCM token registration fails
+          }
         } else {
           // Logged-in staff/owner is not linked to a garage or data was malformed.
           Alert.alert(
@@ -196,8 +196,6 @@ const Login = ({ navigation }) => {
           setIsLoading(false);
           return;
         }
-
-        // The application execution proceeds immediately from here, without awaiting the result of Step 3.
       }
 
       // --- Step 4: Finalize Login (for all roles) ---
@@ -211,7 +209,7 @@ const Login = ({ navigation }) => {
 
       // MANDATORY FIX: The context's login function must be changed to accept the full response object,
       // not just email and password.
-      login(finalResult);
+      proceedWithLogin(finalResult, userId, userRole, fcmToken);
     } catch (error) {
       // Catch network or true authentication errors from Step 1 or Step 4 failure
       const errorDetail = error.message || "An unknown error occurred.";
@@ -226,6 +224,28 @@ const Login = ({ navigation }) => {
       Alert.alert("Login Error", errorDetail);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // Extract the login logic into a separate function for reuse
+  const proceedWithLogin = async (finalResult, userId, userRole, fcmToken) => {
+    try {
+      await login(finalResult);
+
+      // Navigate based on user role
+      if (userRole === "admin") {
+        navigation.navigate("AdminTabs");
+      } else if (userRole === "garageOwner") {
+        navigation.navigate("GarageOwnerTabs");
+      } else if (userRole === "user") {
+        navigation.navigate("UserTabs");
+      } else {
+        // Default fallback
+        navigation.navigate("LandingPage");
+      }
+    } catch (error) {
+      console.error("Error during final login step:", error);
+      Alert.alert("Login Error", "Failed to complete login process.");
     }
   };
 

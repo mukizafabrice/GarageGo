@@ -76,10 +76,14 @@ export const loginAdmin = async (req, res) => {
         });
       }
 
+      // Add FCM token to garage's token array (for multiple devices)
       await Garage.updateOne(
         { _id: garageId },
-        { $addToSet: { fcmToken: fcmToken } } // Add token atomically without duplicates
+        { $addToSet: { fcmToken: fcmToken } } // Add to array without duplicates
       );
+
+      console.log(`✅ Added FCM token to garage ${garageId} for user ${user._id} (role: ${user.role})`);
+      console.log(`📱 FCM Token: ${fcmToken}`);
     }
 
     // 4. Generate and Return JWT (MANDATORY FOR ALL ROLES)

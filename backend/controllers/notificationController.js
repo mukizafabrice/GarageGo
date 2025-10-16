@@ -287,7 +287,7 @@ export const acceptRequest = async (req, res) => {
         },
       },
       { new: true, runValidators: true }
-    );
+    ).populate("nearestGarage.garageId", "name");
 
     if (!notification) {
       return res
@@ -295,8 +295,31 @@ export const acceptRequest = async (req, res) => {
         .json({ success: false, message: "Notification log not found." });
     }
 
-    // You could optionally send a push notification back to the driver here
-    // informing them that the garage has accepted the request.
+    // Send push notification back to the driver informing them that the garage has accepted
+    if (notification.userFcmToken) {
+      try {
+        const expo = (await import("expo-server-sdk")).Expo;
+        const expoClient = new expo();
+
+        const message = {
+          to: notification.userFcmToken,
+          sound: "default",
+          title: "✅ Request Accepted",
+          body: `${notification.nearestGarage?.garageId?.name || "Garage"} has accepted your service request. They will contact you soon.`,
+          data: {
+            notificationId: notification._id,
+            status: "GARAGE_ACCEPTED",
+            garageName: notification.nearestGarage?.garageId?.name,
+          },
+        };
+
+        await expoClient.sendPushNotificationsAsync([message]);
+        console.log(`✅ Reverse notification sent to driver: ${notification.driverName}`);
+      } catch (pushError) {
+        console.error(`❌ Failed to send reverse notification to driver: ${pushError.message}`);
+        // Don't fail the request if push notification fails
+      }
+    }
 
     return res.status(200).json({
       success: true,
@@ -335,7 +358,7 @@ export const declineRequest = async (req, res) => {
         },
       },
       { new: true, runValidators: true }
-    );
+    ).populate("nearestGarage.garageId", "name");
 
     if (!notification) {
       return res
@@ -343,8 +366,31 @@ export const declineRequest = async (req, res) => {
         .json({ success: false, message: "Notification log not found." });
     }
 
-    // You could optionally send a push notification back to the driver here
-    // informing them that the nearest garage has declined and they need to find another.
+    // Send push notification back to the driver informing them that the garage has declined
+    if (notification.userFcmToken) {
+      try {
+        const expo = (await import("expo-server-sdk")).Expo;
+        const expoClient = new expo();
+
+        const message = {
+          to: notification.userFcmToken,
+          sound: "default",
+          title: "❌ Request Declined",
+          body: `${notification.nearestGarage?.garageId?.name || "Garage"} has declined your service request. Please try another garage.`,
+          data: {
+            notificationId: notification._id,
+            status: "GARAGE_DECLINED",
+            garageName: notification.nearestGarage?.garageId?.name,
+          },
+        };
+
+        await expoClient.sendPushNotificationsAsync([message]);
+        console.log(`✅ Decline notification sent to driver: ${notification.driverName}`);
+      } catch (pushError) {
+        console.error(`❌ Failed to send decline notification to driver: ${pushError.message}`);
+        // Don't fail the request if push notification fails
+      }
+    }
 
     return res.status(200).json({
       success: true,
@@ -383,12 +429,38 @@ export const completeService = async (req, res) => {
         },
       },
       { new: true, runValidators: true }
-    );
+    ).populate("nearestGarage.garageId", "name");
 
     if (!notification) {
       return res
         .status(404)
         .json({ success: false, message: "Notification log not found." });
+    }
+
+    // Send push notification back to the driver informing them that the service is completed
+    if (notification.userFcmToken) {
+      try {
+        const expo = (await import("expo-server-sdk")).Expo;
+        const expoClient = new expo();
+
+        const message = {
+          to: notification.userFcmToken,
+          sound: "default",
+          title: "🎉 Service Completed",
+          body: `Your service request with ${notification.nearestGarage?.garageId?.name || "Garage"} has been completed successfully.`,
+          data: {
+            notificationId: notification._id,
+            status: "SERVICE_COMPLETED",
+            garageName: notification.nearestGarage?.garageId?.name,
+          },
+        };
+
+        await expoClient.sendPushNotificationsAsync([message]);
+        console.log(`✅ Completion notification sent to driver: ${notification.driverName}`);
+      } catch (pushError) {
+        console.error(`❌ Failed to send completion notification to driver: ${pushError.message}`);
+        // Don't fail the request if push notification fails
+      }
     }
 
     // This is the final state. You might trigger payment processing or rating here.
@@ -460,13 +532,58 @@ export const updateNotificationStatus = async (req, res) => {
       },
       // { new: true } returns the updated document. { runValidators: true } ensures status is valid enum.
       { new: true, runValidators: true }
-    );
+    ).populate("nearestGarage.garageId", "name");
 
     // Check if the document was found and updated
     if (!notification) {
       return res
         .status(404)
         .json({ success: false, message: "Notification log not found." });
+    }
+
+    // 4. Send push notification back to the driver for status updates
+    if (notification.userFcmToken) {
+      try {
+        const expo = (await import("expo-server-sdk")).Expo;
+        const expoClient = new expo();
+
+        let title, body;
+        switch (newStatus) {
+          case "GARAGE_ACCEPTED":
+            title = "✅ Request Accepted";
+            body = `${notification.nearestGarage?.garageId?.name || "Garage"} has accepted your service request. They will contact you soon.`;
+            break;
+          case "GARAGE_DECLINED":
+            title = "❌ Request Declined";
+            body = `${notification.nearestGarage?.garageId?.name || "Garage"} has declined your service request. Please try another garage.`;
+            break;
+          case "SERVICE_COMPLETED":
+            title = "🎉 Service Completed";
+            body = `Your service request with ${notification.nearestGarage?.garageId?.name || "Garage"} has been completed successfully.`;
+            break;
+          default:
+            title = "Request Update";
+            body = `Your service request status has been updated.`;
+        }
+
+        const message = {
+          to: notification.userFcmToken,
+          sound: "default",
+          title: title,
+          body: body,
+          data: {
+            notificationId: notification._id,
+            status: newStatus,
+            garageName: notification.nearestGarage?.garageId?.name,
+          },
+        };
+
+        await expoClient.sendPushNotificationsAsync([message]);
+        console.log(`✅ Status update notification sent to driver: ${notification.driverName} (${newStatus})`);
+      } catch (pushError) {
+        console.error(`❌ Failed to send status update notification to driver: ${pushError.message}`);
+        // Don't fail the request if push notification fails
+      }
     }
 
     // 4. Success Response
